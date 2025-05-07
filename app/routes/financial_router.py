@@ -16,6 +16,6 @@ def get_financials(symbol: str = Query(...), db: Session = Depends(get_db)):
     result = service.load_statements(symbol)
 
     if not result:
-        return {"message": f"{symbol}에 대한 데이터가 DB에 없습니다."}
+        return None
 
     return result
