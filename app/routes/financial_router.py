@@ -13,7 +13,7 @@ def safe_df_to_dict(df: pd.DataFrame) -> dict:
 @router.get("/financials")
 def get_financials(symbol: str = Query(...), db: Session = Depends(get_db)):
     service = FinancialService(db)
-    result = service.get_statements_from_db(symbol)
+    result = service.load_statements(symbol)
 
     if not result:
         return {"message": f"{symbol}에 대한 데이터가 DB에 없습니다."}
