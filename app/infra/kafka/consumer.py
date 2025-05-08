@@ -55,7 +55,7 @@ def consume_financial_requests():
             db.close()
             continue
 
-        success = service.save_statements_to_db(symbol, dat)
+        success = service.save_statements_to_db(symbol, data)
         if success:
             print(f"✅ 저장 성공: {symbol}")
             send_result_message(symbol=symbol, success=True)
