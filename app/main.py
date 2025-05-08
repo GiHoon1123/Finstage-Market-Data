@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.routes import financial_router
 from app.infra.db.db import Base, engine
 from app.models import *  # __init__.py가 잘 되어 있어야 함
+import threading
+from app.infra.kafka.consumer import consume_financial_requests
 
 app = FastAPI(
     title="Finstage Market Data API",
@@ -9,8 +11,15 @@ app = FastAPI(
     description="주가 및 재무데이터 수집/제공 서비스"
 )
 
-# 라우터 등록
+# ✅ 라우터 등록
 app.include_router(financial_router.router)
 
 # ✅ DB 테이블 생성
 Base.metadata.create_all(bind=engine)
+
+# ✅ Kafka Consumer 자동 실행 (백그라운드 스레드)
+@app.on_event("startup")
+def start_kafka_consumer():
+    thread = threading.Thread(target=consume_financial_requests)
+    thread.daemon = True
+    thread.start()
