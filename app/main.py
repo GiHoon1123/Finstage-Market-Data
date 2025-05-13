@@ -1,3 +1,4 @@
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8081
 from fastapi import FastAPI
 from app.routes import financial_router
 from app.infra.db.db import Base, engine
