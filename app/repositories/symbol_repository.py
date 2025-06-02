@@ -15,3 +15,7 @@ def get_symbols_with_pagination(session: Session, page: int, size: int):
     ).all()
 
     return total, items
+
+
+def exists_symbol(session: Session, symbol: str) -> bool:
+    return session.query(Symbol).filter_by(symbol=symbol).first() is not None

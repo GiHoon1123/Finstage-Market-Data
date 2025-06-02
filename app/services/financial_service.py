@@ -1,6 +1,7 @@
 import requests
 from typing import Optional, Dict
 from datetime import datetime
+from app.repositories.symbol_repository import exists_symbol
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.repositories.financial_repository import FinancialRepository
@@ -97,6 +98,11 @@ class FinancialService:
             return False
 
     def load_statements(self, symbol: str) -> Optional[Dict]:
+        # 심볼이 테이블에 없으면 잘못된 요청으로 간주
+        if not exists_symbol(self.db, symbol):
+            print(f"❌ 심볼({symbol})은 심볼 테이블에 존재하지 않음")
+            return None
+
         income = self.repo.get_income_statements(symbol)
         balance = self.repo.get_balance_sheets(symbol)
         cashflow = self.repo.get_cash_flow_statements(symbol)
