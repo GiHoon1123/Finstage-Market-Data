@@ -31,6 +31,7 @@ def get_financial_statements(symbol: str):
     
 def sync_income_statements(session, symbol, income_data):
     def save(entry):
+        print("entry:", entry)
         date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
         exists = session.query(IncomeStatement).filter_by(symbol=symbol, date=date).first()
         if exists:
@@ -120,16 +121,27 @@ def sync_financials(session: Session, symbol: str, data: dict):
 def run_financial_sync():
     db = SessionLocal()
     try:
-        symbols = symbol_repository.get_all_symbols(db)
+        # symbols = symbol_repository.get_all_symbols(db)
+        # for symbol_obj in symbols:
+        #     symbol = symbol_obj.symbol
+        #     print(f"🚀 {symbol} 재무제표 동기화 중...")
 
-        for symbol_obj in symbols:
-            symbol = symbol_obj.symbol
+        #     data = get_financial_statements(symbol)
+        #     if data:
+        #         sync_financials(db, symbol, data)
+
+        # api 콜 제한으로 수동으로 넣어줘야 할 심볼들
+        symbols = ['SAIA', 'SBUX', 'SIRI', 'SMCI', 'SNPS', 'STLD', 'TEAM', 'TMUS', 'TSLA', 'TTWO', 'VRSK', 'VRTX', 'WDAY', 'ZBRA']
+        for symbol in symbols:
             print(f"🚀 {symbol} 재무제표 동기화 중...")
 
             data = get_financial_statements(symbol)
             if data:
                 sync_financials(db, symbol, data)
-
+            else:
+                print(f"❌ {symbol} 데이터 수집 실패")
+    except Exception as e:
+        print(f"❌ 데이터 수집 중 오류 발생: {e}")
     finally:
         db.close()
 
