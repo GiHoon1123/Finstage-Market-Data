@@ -1,20 +1,27 @@
 import os
 import requests
 from datetime import datetime
+from app.common.constants.symbol_names import SYMBOL_CATEGORY_MAP, SYMBOL_NAME_MAP
+import traceback
 
 
-def send_telegram_message(title: str, summary: str, url: str, published_at: datetime) -> None:
+def send_telegram_message(title: str, summary: str, url: str, published_at: datetime, symbol: str) -> None:
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("❌ TELEGRAM 환경변수가 설정되지 않았습니다.")
         return
 
-    # 날짜 문자열 포맷팅
+    display_name = SYMBOL_NAME_MAP.get(symbol, "알 수 없는 대상")
+    category = SYMBOL_CATEGORY_MAP.get(symbol, "기타")
+
+    symbol_header = f"📌 <b>[{symbol}] {display_name} 관련 기사입니다. ({category})</b>"
+
     published_str = published_at.strftime("%Y-%m-%d %H:%M:%S") if published_at else "날짜 없음"
 
-    # 텔레그램 메시지 HTML 템플릿
-    message = f"""📰 <b>{title}</b>
+    message = f"""{symbol_header}
+
+📰 <b>{title}</b>
 
 {summary or "요약 없음"}
 
@@ -38,3 +45,4 @@ def send_telegram_message(title: str, summary: str, url: str, published_at: date
             print(f"📨 텔레그램 전송 완료: {title}")
     except Exception as e:
         print(f"❌ 텔레그램 전송 중 예외 발생: {e}")
+        traceback.print_exc()

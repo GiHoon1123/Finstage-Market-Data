@@ -22,8 +22,8 @@ class NewsProcessor:
                     continue
 
                 content = self._save_content(item)
-                title_ko, summary_ko = self._save_translation(content)  # ✅ 수정: 결과 받기
-                self._send_notification(content, title_ko, summary_ko)  # ✅ 수정: 전달하기
+                title_ko, summary_ko, symbol = self._save_translation(content)  
+                self._send_notification(content, title_ko, summary_ko, symbol)  
 
             self.session.commit()
         except Exception as e:
@@ -49,7 +49,6 @@ class NewsProcessor:
             crawled_at=item["crawled_at"],
             published_at=item["published_at"],
             content_hash=item["content_hash"],
-            is_duplicate=False
         )
         self.content_repo.save(content)
         self.session.flush()
@@ -58,7 +57,7 @@ class NewsProcessor:
     def _save_translation(self, content: Content) -> tuple[str, str | None]:  # ✅ 수정
         title_ko = translate_to_korean(content.title)
         summary_ko = translate_to_korean(content.summary) if content.summary else None
-
+        symbol = content.symbol 
         translation = ContentTranslation(
             content_id=content.id,
             language="ko",
@@ -69,9 +68,9 @@ class NewsProcessor:
         )
         self.translation_repo.save(translation)
         print(f"✅ 저장 완료: {content.title} → {title_ko}")
-        return title_ko, summary_ko  # ✅ 번역 결과 반환
+        return title_ko, summary_ko, symbol  # ✅ 번역 결과 반환
 
-    def _send_notification(self, content: Content, title_ko: str, summary_ko: str | None):
+    def _send_notification(self, content: Content, title_ko: str, summary_ko: str, symbol: str):
         if not self.telegram_enabled:
             return
 
@@ -80,7 +79,8 @@ class NewsProcessor:
                 title=title_ko,
                 summary=summary_ko,
                 url=content.url,
-                published_at=content.published_at
+                published_at=content.published_at,
+                symbol=symbol
             )
         except Exception as e:
             print(f"❌ 텔레그램 전송 실패: {e}")

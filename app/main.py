@@ -7,6 +7,7 @@ from app.company.web.route.financial_router import router as financial_router
 from app.crawler.web.route.news_test_router import router as news_test_router 
 import os
 from dotenv import load_dotenv
+from app.scheduler.scheduler_runner import start_scheduler
 
 # 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
 mode = os.getenv("ENV_MODE", "dev")
@@ -28,4 +29,8 @@ app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawl
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
+
+@app.on_event("startup")
+def startup_event():
+    start_scheduler()  # 서버 시작 시 스케줄러 동작 시작
 

@@ -6,7 +6,8 @@ from typing import List, Dict
 from urllib.parse import quote
 
 from app.crawler.service.base import BaseCrawler
-from app.crawler.service.news_processor import NewsProcessor  # ✅ 추가
+from app.crawler.service.news_processor import NewsProcessor  
+from email.utils import parsedate_to_datetime
 
 
 class YahooIndexNewsCrawler(BaseCrawler):
@@ -29,7 +30,7 @@ class YahooIndexNewsCrawler(BaseCrawler):
 
             news_list = []
 
-            for item in items[:20]:  # 최신 20개만
+            for item in items[:2]:
                 title = item.findtext("title")
                 url = item.findtext("link")
                 summary = item.findtext("description")
@@ -38,16 +39,22 @@ class YahooIndexNewsCrawler(BaseCrawler):
                 if not title or not url:
                     continue
 
+                content_hash = self.generate_hash(title)
+
+                published_at = parsedate_to_datetime(pub_date) if pub_date else None
+                if published_at and published_at.tzinfo:
+                    published_at = published_at.replace(tzinfo=None)
+
                 news_list.append({
                     "title": title.strip(),
                     "url": url.strip(),
                     "source": "yahoo.com",
                     "summary": summary.strip() if summary else None,
-                    "html": "",  # 상세 HTML은 미포함
+                    "html": "",
                     "symbol": self.symbol,
-                    "content_hash": self.generate_hash(title + url),
+                    "content_hash": content_hash,
                     "crawled_at": self.get_crawled_at(),
-                    "published_at": pub_date.strip() if pub_date else None
+                    "published_at": published_at
                 })
 
             return news_list
@@ -56,20 +63,9 @@ class YahooIndexNewsCrawler(BaseCrawler):
             print(f"❌ 파싱 중 오류 발생: {e}")
             return []
 
-    def save_all(self):
+    def process_all(self):
         results = self.crawl()
         processor = NewsProcessor(results)
         processor.run()
 
 
-if __name__ == "__main__":
-    index_symbols = {
-        "NASDAQ": "^IXIC",
-        "S&P500": "^GSPC",
-        "DOWJONES": "^DJI"
-    }
-
-    for name, symbol in index_symbols.items():
-        print(f"\n=== {name} 뉴스 저장 시작 ===")
-        crawler = YahooIndexNewsCrawler(symbol=symbol)
-        crawler.save_all()

@@ -15,7 +15,6 @@ class Content(Base):
     crawled_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="크롤링 시각")
     published_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="기사 발행 시각")
     content_hash = Column(String(64), nullable=False, unique=True, comment="중복 방지를 위한 콘텐츠 해시")
-    is_duplicate = Column(Boolean, default=False, comment="중복 여부")
 
 
     def __repr__(self):

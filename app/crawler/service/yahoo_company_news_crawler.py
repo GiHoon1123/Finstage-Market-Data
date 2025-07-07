@@ -4,7 +4,7 @@ from typing import List, Dict
 from urllib.parse import quote
 
 from app.crawler.service.base import BaseCrawler
-from app.crawler.service.news_processor import NewsProcessor  # ✅ 추가된 부분
+from app.crawler.service.news_processor import NewsProcessor  
 from email.utils import parsedate_to_datetime
 
 
@@ -27,17 +27,20 @@ class YahooCompanyNewsCrawler(BaseCrawler):
             items = root.find("channel").findall("item")
             news_list = []
 
-            for item in items[:20]:
+            for item in items[:2]:
                 title = item.findtext("title")
                 url = item.findtext("link")
                 summary = item.findtext("description")
                 pub_date = item.findtext("pubDate")
 
-
                 if not title or not url:
                     continue
 
                 content_hash = self.generate_hash(title)
+
+                published_at = parsedate_to_datetime(pub_date) if pub_date else None
+                if published_at and published_at.tzinfo:
+                    published_at = published_at.replace(tzinfo=None)
 
                 news_list.append({
                     "title": title.strip(),
@@ -48,8 +51,9 @@ class YahooCompanyNewsCrawler(BaseCrawler):
                     "symbol": self.symbol,
                     "content_hash": content_hash,
                     "crawled_at": self.get_crawled_at(),
-                    "published_at": parsedate_to_datetime(pub_date) if pub_date else None
+                    "published_at": published_at
                 })
+
 
             return news_list
 
@@ -57,7 +61,7 @@ class YahooCompanyNewsCrawler(BaseCrawler):
             print(f"❌ 파싱 중 오류 발생: {e}")
             return []
 
-    def save_all(self):
+    def process_all(self):
         results = self.crawl()
         processor = NewsProcessor(results)
         processor.run()
