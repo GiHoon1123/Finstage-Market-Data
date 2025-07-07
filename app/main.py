@@ -1,10 +1,17 @@
-# uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
+# ENV_MODE=dev uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
+# ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8081
 from fastapi import FastAPI
 from app.common.infra.database.config.database_config import Base, engine
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
+from app.crawler.web.route.news_test_router import router as news_test_router 
+import os
+from dotenv import load_dotenv
 
-
+# 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
+mode = os.getenv("ENV_MODE", "dev")
+env_file = f".env.{mode}"
+load_dotenv(dotenv_path=env_file)
 
 
 app = FastAPI(
@@ -16,9 +23,8 @@ app = FastAPI(
 # 라우터 등록
 app.include_router(financial_router, prefix="/api/financials", tags=["Financial"])
 app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
+app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])  # ✅ 추가
 
-# 다른 라우터도 여기에 추가 가능
-# app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
