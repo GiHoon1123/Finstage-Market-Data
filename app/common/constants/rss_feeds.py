@@ -5,3 +5,6 @@ INVESTING_RSS_FEEDS = {
     "INVESTING:COMMODITY": "https://www.investing.com/rss/commodities.rss",
     "INVESTING:FOREX": "https://www.investing.com/rss/forex.rss"
 }
+
+INVESTING_ECONOMIC_SYMBOLS = ["INVESTING:ECONOMY", "INVESTING:US"]
+INVESTING_MARKET_SYMBOLS = ["INVESTING:MARKET", "INVESTING:COMMODITY", "INVESTING:FOREX"]

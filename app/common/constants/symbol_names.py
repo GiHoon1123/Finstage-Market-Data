@@ -1,21 +1,19 @@
-# app/common/constants/symbol_names.py
-
 # ✅ 지수 (Index)
-YAHOO_INDEX_SYMBOLS = {
+INDEX_SYMBOLS = {
     "^IXIC": "나스닥 지수",
     "^GSPC": "S&P 500 지수",
     "^DJI": "다우존스 지수"
 }
 
 # ✅ 선물 (Futures)
-YAHOO_FUTURES_SYMBOLS = {
+FUTURES_SYMBOLS = {
     "ES=F": "S&P 500 선물",
     "NQ=F": "나스닥 선물",
     "YM=F": "다우존스 선물"
 }
 
 # ✅ 종목 (Stocks)
-YAHOO_STOCK_SYMBOLS = {
+STOCK_SYMBOLS = {
     "AAPL": "애플",
     "AMZN": "아마존",
     "GOOGL": "구글",
@@ -42,17 +40,17 @@ INVESTING_SYMBOLS = {
 }
 
 SYMBOL_NAME_MAP = {
-    **YAHOO_INDEX_SYMBOLS,
-    **YAHOO_FUTURES_SYMBOLS,
-    **YAHOO_STOCK_SYMBOLS,
+    **INDEX_SYMBOLS,
+    **FUTURES_SYMBOLS,
+    **STOCK_SYMBOLS,
     **COMMUNITY_SYMBOLS,
     **INVESTING_SYMBOLS
 }
 
 SYMBOL_CATEGORY_MAP = {
-    **{symbol: "지수" for symbol in YAHOO_INDEX_SYMBOLS},
-    **{symbol: "선물" for symbol in YAHOO_FUTURES_SYMBOLS},
-    **{symbol: "종목" for symbol in YAHOO_STOCK_SYMBOLS},
+    **{symbol: "지수" for symbol in INDEX_SYMBOLS},
+    **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
+    **{symbol: "종목" for symbol in STOCK_SYMBOLS},
     **{symbol: "커뮤니티" for symbol in COMMUNITY_SYMBOLS},
     **{symbol: "국제뉴스" for symbol in INVESTING_SYMBOLS}
 }

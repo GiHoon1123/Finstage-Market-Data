@@ -1,17 +1,16 @@
 import requests
 import xml.etree.ElementTree as ET
-import hashlib
-from datetime import datetime
 from typing import List, Dict
 from dateutil import parser as date_parser 
 from app.crawler.service.base import BaseCrawler
 from app.crawler.service.news_processor import NewsProcessor
+from app.common.constants.rss_feeds import INVESTING_RSS_FEEDS
 
 
-class InvestingRssNewsCrawler(BaseCrawler):
-    def __init__(self, rss_url: str, symbol: str):
-        self.rss_url = rss_url
+class InvestingNewsCrawler(BaseCrawler):
+    def __init__(self, symbol: str):
         self.symbol = symbol
+        self.rss_url = INVESTING_RSS_FEEDS.get(symbol)
 
     def crawl(self) -> List[Dict]:
         try:
@@ -24,7 +23,7 @@ class InvestingRssNewsCrawler(BaseCrawler):
             items = root.find("channel").findall("item")
             news_list = []
 
-            for item in items[:2]:  # 최대 10개까지 파싱
+            for item in items[:2]:  
                 title = item.findtext("title")
                 url = item.findtext("link")
                 summary = item.findtext("description")
@@ -33,17 +32,11 @@ class InvestingRssNewsCrawler(BaseCrawler):
                 if not title or not url:
                     continue
 
-
                 content_hash = self.generate_hash(title)
+                published_at = date_parser.parse(pub_date_raw) if pub_date_raw else None
+                if published_at and published_at.tzinfo:
+                    published_at = published_at.replace(tzinfo=None)
 
-
-                try:
-                    published_at = date_parser.parse(pub_date_raw) if pub_date_raw else None
-                    if published_at and published_at.tzinfo:
-                        published_at = published_at.replace(tzinfo=None)
-                except Exception as e:
-                    print(f"❌ 날짜 파싱 실패: {pub_date_raw} ({e})")
-                    published_at = None
 
                 news_list.append({
                     "title": title.strip(),
@@ -53,18 +46,15 @@ class InvestingRssNewsCrawler(BaseCrawler):
                     "html": "",
                     "symbol": self.symbol,
                     "content_hash": content_hash,
-                    "crawled_at": datetime.utcnow(),
+                    "crawled_at": self.get_crawled_at(),
                     "published_at": published_at
                 })
 
             return news_list
 
         except Exception as e:
-            print(f"❌ Investing RSS 파싱 오류: {e}")
+            print(f"❌ 파싱 중 오류 발생: {e}")
             return []
-
-    def generate_hash(self, text: str) -> str:
-        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def process_all(self):
         results = self.crawl()
