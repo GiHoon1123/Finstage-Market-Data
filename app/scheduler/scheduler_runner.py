@@ -3,7 +3,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.crawler.service.yahoo_company_news_crawler import YahooCompanyNewsCrawler
 from app.crawler.service.yahoo_futures_news_crawler import YahooFuturesNewsCrawler
 from app.crawler.service.yahoo_index_news_crawler import YahooIndexNewsCrawler
-from app.common.constants.symbol_names import INDEX_SYMBOLS, FUTURES_SYMBOLS, STOCK_SYMBOLS
+from app.crawler.service.investing_rss_news_crawler import InvestingRssNewsCrawler
+from app.crawler.service.news_processor import NewsProcessor
+from app.common.constants.symbol_names import YAHOO_INDEX_SYMBOLS, YAHOO_FUTURES_SYMBOLS, YAHOO_STOCK_SYMBOLS
+from app.common.constants.rss_feeds import INVESTING_RSS_FEEDS
 from app.crawler.service.dc_us_stock_crawler import DcUsStockGalleryCrawler
 from app.crawler.service.dc_news_processor import DcNewsProcessor
 import time
@@ -22,8 +25,22 @@ import time
 
 #     print("✅ DC인사이드 갤러리 처리 완료")
 
+def run_investing_news_crawlers():
+    print("📡 Investing.com 뉴스 크롤링 시작")
 
-def run_news_crawlers():
+    for symbol, rss_url in INVESTING_RSS_FEEDS.items():
+        print(f"🔍 {symbol} → {rss_url}")
+        time.sleep(5)
+        crawler = InvestingRssNewsCrawler(rss_url=rss_url, symbol=symbol)
+        news_items = crawler.crawl()
+        processor = NewsProcessor(news_items)
+        processor.run()
+        time.sleep(3)  # 요청 과부하 방지용
+
+    print("✅ Investing.com 뉴스 크롤링 완료")
+
+
+def run_yahoo_news_crawlers():
     print("🕒 [뉴스 크롤링] 시작")
 
     def crawl_company(symbol):
@@ -39,13 +56,13 @@ def run_news_crawlers():
         YahooIndexNewsCrawler(symbol).process_all()
 
     with ThreadPoolExecutor(max_workers=5) as executor:
-        for symbol in STOCK_SYMBOLS:
+        for symbol in YAHOO_STOCK_SYMBOLS:
             executor.submit(crawl_company, symbol)
             
-        for symbol in FUTURES_SYMBOLS:
+        for symbol in YAHOO_FUTURES_SYMBOLS:
             executor.submit(crawl_futures, symbol)
 
-        for symbol in INDEX_SYMBOLS:
+        for symbol in YAHOO_INDEX_SYMBOLS:
             executor.submit(crawl_index, symbol)
 
         # future = executor.submit(run_dcinside_crawler)
@@ -58,8 +75,10 @@ def run_news_crawlers():
 def start_scheduler():
     scheduler = BackgroundScheduler()
     # 예: 10분마다 실행
-    scheduler.add_job(run_news_crawlers, 'interval', minutes=10)
+    scheduler.add_job(run_yahoo_news_crawlers, 'interval', minutes=10)
+    scheduler.add_job(run_investing_news_crawlers, 'interval', minutes=10)
     scheduler.start()
     print("🔄 APScheduler 시작됨")
 
-    run_news_crawlers()
+    run_yahoo_news_crawlers()
+    run_investing_news_crawlers()

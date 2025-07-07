@@ -1,21 +1,21 @@
 # app/common/constants/symbol_names.py
 
 # ✅ 지수 (Index)
-INDEX_SYMBOLS = {
+YAHOO_INDEX_SYMBOLS = {
     "^IXIC": "나스닥 지수",
     "^GSPC": "S&P 500 지수",
     "^DJI": "다우존스 지수"
 }
 
 # ✅ 선물 (Futures)
-FUTURES_SYMBOLS = {
+YAHOO_FUTURES_SYMBOLS = {
     "ES=F": "S&P 500 선물",
     "NQ=F": "나스닥 선물",
     "YM=F": "다우존스 선물"
 }
 
-# ✅ 종목 (Stocks) - 한글 명칭
-STOCK_SYMBOLS = {
+# ✅ 종목 (Stocks)
+YAHOO_STOCK_SYMBOLS = {
     "AAPL": "애플",
     "AMZN": "아마존",
     "GOOGL": "구글",
@@ -26,24 +26,33 @@ STOCK_SYMBOLS = {
     "PLTR": "팔란티어"
 }
 
-# ✅ 디시인사이드 미국 주식 갤러리 추가
+# ✅ 커뮤니티 (Community)
 COMMUNITY_SYMBOLS = {
     "DC_US": "디시 미국주식 갤러리"
 }
 
+
+# ✅ 뉴스 공급자 (Investing RSS 카테고리)
+INVESTING_SYMBOLS = {
+    "INVESTING:ECONOMY": "인베스팅 경제 뉴스",
+    "INVESTING:US": "인베스팅 미국 뉴스",
+    "INVESTING:MARKET": "인베스팅 시장 분석",
+    "INVESTING:COMMODITY": "인베스팅 원자재 뉴스",
+    "INVESTING:FOREX": "인베스팅 외환 뉴스"
+}
+
 SYMBOL_NAME_MAP = {
-    **INDEX_SYMBOLS,
-    **FUTURES_SYMBOLS,
-    **STOCK_SYMBOLS,
-    **COMMUNITY_SYMBOLS
+    **YAHOO_INDEX_SYMBOLS,
+    **YAHOO_FUTURES_SYMBOLS,
+    **YAHOO_STOCK_SYMBOLS,
+    **COMMUNITY_SYMBOLS,
+    **INVESTING_SYMBOLS
 }
 
-
-# ✅ 전체 심볼 → 이름 매핑 (옵션)
 SYMBOL_CATEGORY_MAP = {
-    **{symbol: "지수" for symbol, _ in INDEX_SYMBOLS.items()},
-    **{symbol: "선물" for symbol, _ in FUTURES_SYMBOLS.items()},
-    **{symbol: "종목" for symbol, _ in STOCK_SYMBOLS.items()},
-    **{symbol: "커뮤니티" for symbol, _ in COMMUNITY_SYMBOLS.items()}
+    **{symbol: "지수" for symbol in YAHOO_INDEX_SYMBOLS},
+    **{symbol: "선물" for symbol in YAHOO_FUTURES_SYMBOLS},
+    **{symbol: "종목" for symbol in YAHOO_STOCK_SYMBOLS},
+    **{symbol: "커뮤니티" for symbol in COMMUNITY_SYMBOLS},
+    **{symbol: "국제뉴스" for symbol in INVESTING_SYMBOLS}
 }
-
