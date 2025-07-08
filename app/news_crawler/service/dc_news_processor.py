@@ -1,6 +1,6 @@
 from datetime import datetime
-from app.crawler.infra.model.entity.content import Content
-from app.crawler.infra.model.repository.content_repository import ContentRepository
+from app.news_crawler.infra.model.entity.content import Content
+from app.news_crawler.infra.model.repository.content_repository import ContentRepository
 from app.common.utils.telegram_notifier import send_telegram_message
 from app.common.infra.database.config.database_config import SessionLocal
 

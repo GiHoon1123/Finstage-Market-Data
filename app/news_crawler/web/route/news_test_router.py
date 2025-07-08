@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.crawler.service.yahoo_company_news_crawler import YahooCompanyNewsCrawler
+from app.news_crawler.service.yahoo_company_news_crawler import YahooCompanyNewsCrawler
 
 router = APIRouter(prefix="/test/news", tags=["Test News Crawler"])
 

@@ -2,13 +2,12 @@ import requests
 import xml.etree.ElementTree as ET
 from typing import List, Dict
 from urllib.parse import quote
-
-from app.crawler.service.base import BaseCrawler
-from app.crawler.service.news_processor import NewsProcessor  
 from email.utils import parsedate_to_datetime
+from app.news_crawler.service.base import BaseCrawler
+from app.news_crawler.service.news_processor import NewsProcessor
 
 
-class YahooCompanyNewsCrawler(BaseCrawler):
+class YahooNewsCrawler(BaseCrawler):
     def __init__(self, symbol: str):
         self.symbol = symbol
         self.base_url = (
@@ -25,8 +24,8 @@ class YahooCompanyNewsCrawler(BaseCrawler):
 
             root = ET.fromstring(res.content)
             items = root.find("channel").findall("item")
-            news_list = []
 
+            news_list = []
             for item in items[:2]:
                 title = item.findtext("title")
                 url = item.findtext("link")
@@ -37,7 +36,6 @@ class YahooCompanyNewsCrawler(BaseCrawler):
                     continue
 
                 content_hash = self.generate_hash(title)
-
                 published_at = parsedate_to_datetime(pub_date) if pub_date else None
                 if published_at and published_at.tzinfo:
                     published_at = published_at.replace(tzinfo=None)
@@ -53,7 +51,6 @@ class YahooCompanyNewsCrawler(BaseCrawler):
                     "crawled_at": self.get_crawled_at(),
                     "published_at": published_at
                 })
-
 
             return news_list
 

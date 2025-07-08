@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.crawler.infra.model.entity.content import Content
+from app.news_crawler.infra.model.entity.content import Content
 
 
 class ContentRepository:

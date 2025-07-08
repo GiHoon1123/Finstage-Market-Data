@@ -1,18 +1,15 @@
 import requests
 import xml.etree.ElementTree as ET
-import hashlib
-from datetime import datetime
 from typing import List, Dict
 from urllib.parse import quote
 
-from app.crawler.service.base import BaseCrawler
-from app.crawler.service.news_processor import NewsProcessor  
+from app.news_crawler.service.base import BaseCrawler
+from app.news_crawler.service.news_processor import NewsProcessor  
 from email.utils import parsedate_to_datetime
 
-
-class YahooIndexNewsCrawler(BaseCrawler):
+class YahooFuturesNewsCrawler(BaseCrawler):
     def __init__(self, symbol: str):
-        self.symbol = symbol  # 예: "^IXIC", "^GSPC", "^DJI"
+        self.symbol = symbol  # 예: "NQ=F", "ES=F", "YM=F"
         self.base_url = (
             "https://feeds.finance.yahoo.com/rss/2.0/headline"
             f"?s={quote(self.symbol)}&region=US&lang=en-US"
@@ -27,7 +24,6 @@ class YahooIndexNewsCrawler(BaseCrawler):
 
             root = ET.fromstring(res.content)
             items = root.find("channel").findall("item")
-
             news_list = []
 
             for item in items[:2]:
@@ -67,5 +63,3 @@ class YahooIndexNewsCrawler(BaseCrawler):
         results = self.crawl()
         processor = NewsProcessor(results)
         processor.run()
-
-

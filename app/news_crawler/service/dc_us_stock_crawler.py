@@ -1,7 +1,7 @@
 import requests
 import hashlib
 from bs4 import BeautifulSoup
-from app.crawler.service.dc_news_processor import  DcNewsProcessor
+from app.news_crawler.service.dc_news_processor import  DcNewsProcessor
 
 class DcUsStockGalleryCrawler:
     def __init__(self, gallery_id="stockus", page=1):

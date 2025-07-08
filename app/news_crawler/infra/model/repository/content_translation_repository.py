@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.crawler.infra.model.entity.content_translations import ContentTranslation
+from app.news_crawler.infra.model.entity.content_translations import ContentTranslation
 
 class ContentTranslationRepository:
     def __init__(self, session: Session):

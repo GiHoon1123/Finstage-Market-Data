@@ -2,8 +2,8 @@ import requests
 import xml.etree.ElementTree as ET
 from typing import List, Dict
 from dateutil import parser as date_parser 
-from app.crawler.service.base import BaseCrawler
-from app.crawler.service.news_processor import NewsProcessor
+from app.news_crawler.service.base import BaseCrawler
+from app.news_crawler.service.news_processor import NewsProcessor
 from app.common.constants.rss_feeds import INVESTING_RSS_FEEDS
 
 

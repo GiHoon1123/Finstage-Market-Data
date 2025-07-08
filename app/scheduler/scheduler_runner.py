@@ -1,19 +1,17 @@
-from concurrent.futures import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.crawler.service.yahoo_company_news_crawler import YahooCompanyNewsCrawler
-from app.crawler.service.yahoo_futures_news_crawler import YahooFuturesNewsCrawler
-from app.crawler.service.yahoo_index_news_crawler import YahooIndexNewsCrawler
-from app.crawler.service.investing_news_crawler import InvestingNewsCrawler
-from app.crawler.service.news_processor import NewsProcessor
+from app.news_crawler.service.yahoo_company_news_crawler import YahooCompanyNewsCrawler
+from app.news_crawler.service.yahoo_futures_news_crawler import YahooFuturesNewsCrawler
+from app.news_crawler.service.yahoo_index_news_crawler import YahooIndexNewsCrawler
+from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
+from app.news_crawler.service.news_processor import NewsProcessor
+from app.news_crawler.service.dc_us_stock_crawler import DcUsStockGalleryCrawler
+from app.news_crawler.service.dc_news_processor import DcNewsProcessor
+from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 from app.common.constants.symbol_names import INDEX_SYMBOLS, FUTURES_SYMBOLS, STOCK_SYMBOLS
 from app.common.constants.rss_feeds import INVESTING_ECONOMIC_SYMBOLS, INVESTING_MARKET_SYMBOLS
 from app.common.constants.yahoo_feeds import YAHOO_NEWS_SYMBOLS
-from app.crawler.service.dc_us_stock_crawler import DcUsStockGalleryCrawler
-from app.crawler.service.dc_news_processor import DcNewsProcessor
-
-
-from app.crawler.service.yahoo_news_crawler import YahooNewsCrawler
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 # def run_dcinside_crawler():
 #     print("📥 DC인사이드 미국주식 갤러리 크롤링 시작")

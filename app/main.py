@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from app.common.infra.database.config.database_config import Base, engine
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
-from app.crawler.web.route.news_test_router import router as news_test_router 
+from app.news_crawler.web.route.news_test_router import router as news_test_router 
 import os
 from dotenv import load_dotenv
 from app.scheduler.scheduler_runner import start_scheduler
