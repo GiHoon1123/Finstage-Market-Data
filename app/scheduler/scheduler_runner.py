@@ -112,15 +112,12 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     # scheduler.add_job(run_yahoo_news_crawlers, 'interval', minutes=10)
     # scheduler.add_job(run_investing_news_crawlers, 'interval', minutes=10)
-    # scheduler.start()
-    # print("🔄 APScheduler 시작됨")
-
-    # run_yahoo_news_crawlers()
-    # run_investing_news_crawlers()
-
+    
+    print("🔄 APScheduler 시작됨")
     scheduler.add_job(run_investing_economic_news, 'interval', minutes=30)
     scheduler.add_job(run_investing_market_news, 'interval', minutes=30)
     scheduler.add_job(run_yahoo_futures_news, 'interval', minutes=10)
     scheduler.add_job(run_yahoo_index_news, 'interval', minutes=30)
     scheduler.add_job(run_yahoo_stock_news, 'interval', minutes=15)
+    scheduler.start()
     
