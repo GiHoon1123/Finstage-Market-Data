@@ -21,7 +21,8 @@ STOCK_SYMBOLS = {
     "GRYP": "그리폰 디지털 마이닝",
     "MSFT": "마이크로소프트",
     "META": "메타",
-    "PLTR": "팔란티어"
+    "PLTR": "팔란티어",
+    "BTBT": "비트 디지털"
 }
 
 # ✅ 커뮤니티 (Community)
@@ -45,6 +46,12 @@ SYMBOL_NAME_MAP = {
     **STOCK_SYMBOLS,
     **COMMUNITY_SYMBOLS,
     **INVESTING_SYMBOLS
+}
+
+SYMBOL_PRICE_MAP = {
+    **INDEX_SYMBOLS,
+    **FUTURES_SYMBOLS,
+    **STOCK_SYMBOLS,
 }
 
 SYMBOL_CATEGORY_MAP = {

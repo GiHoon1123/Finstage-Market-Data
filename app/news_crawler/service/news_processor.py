@@ -1,6 +1,6 @@
 from app.common.infra.database.config.database_config import SessionLocal
 from app.common.utils.translate_to_korean import translate_to_korean
-from app.common.utils.telegram_notifier import send_telegram_message
+from app.common.utils.telegram_notifier import send_news_telegram_message
 from app.news_crawler.infra.model.entity.content import Content
 from app.news_crawler.infra.model.entity.content_translations import ContentTranslation
 from app.news_crawler.infra.model.repository.content_repository import ContentRepository
@@ -75,7 +75,7 @@ class NewsProcessor:
             return
 
         try:
-            send_telegram_message(
+            send_news_telegram_message(
                 title=title_ko,
                 summary=summary_ko,
                 url=content.url,

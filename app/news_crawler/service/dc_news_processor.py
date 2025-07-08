@@ -1,7 +1,7 @@
 from datetime import datetime
 from app.news_crawler.infra.model.entity.content import Content
 from app.news_crawler.infra.model.repository.content_repository import ContentRepository
-from app.common.utils.telegram_notifier import send_telegram_message
+from app.common.utils.telegram_notifier import send_news_telegram_message
 from app.common.infra.database.config.database_config import SessionLocal
 
 
@@ -41,7 +41,7 @@ class DcNewsProcessor:
                 self.session.flush()
 
                 # 텔레그램 전송
-                send_telegram_message(
+                send_news_telegram_message(
                     title=content.title,
                     summary=content.summary,
                     url=content.url,
