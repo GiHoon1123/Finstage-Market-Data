@@ -75,6 +75,23 @@ def run_previous_close_snapshot_job():
 
     print("✅ 전일 종가 저장 완료")
 
+def run_previous_high_snapshot_job():
+    print("🔺 전일 고점 저장 시작")
+    service = PriceSnapshotService()
+    for symbol in SYMBOL_PRICE_MAP:
+        time.sleep(5.0)
+        service.save_previous_high_if_needed(symbol)
+    print("✅ 전일 고점 저장 완료")
+
+
+def run_previous_low_snapshot_job():
+    print("🔻 전일 저점 저장 시작")
+    service = PriceSnapshotService()
+    for symbol in SYMBOL_PRICE_MAP:
+        time.sleep(5.0)
+        service.save_previous_low_if_needed(symbol)
+    print("✅ 전일 저점 저장 완료")
+
 
 def run_realtime_price_monitor_job():
     print("📡 실시간 가격 모니터링 시작")
@@ -93,16 +110,23 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
 
     print("🔄 APScheduler 시작됨")
-    scheduler.add_job(run_investing_economic_news, 'interval', minutes=30)
-    scheduler.add_job(run_investing_market_news, 'interval', minutes=30)
-    scheduler.add_job(run_yahoo_futures_news, 'interval', minutes=10)
-    scheduler.add_job(run_yahoo_index_news, 'interval', minutes=30)
-    scheduler.add_job(run_yahoo_stock_news, 'interval', minutes=15)
-    scheduler.add_job(run_high_price_update_job, 'interval', hours=1)
-    scheduler.add_job(run_previous_close_snapshot_job, 'interval', hours=1)
-    scheduler.add_job(run_realtime_price_monitor_job, 'interval', minutes=1)
+    # scheduler.add_job(run_investing_economic_news, 'interval', minutes=30)
+    # scheduler.add_job(run_investing_market_news, 'interval', minutes=30)
+    # scheduler.add_job(run_yahoo_futures_news, 'interval', minutes=10)
+    # scheduler.add_job(run_yahoo_index_news, 'interval', minutes=30)
+    # scheduler.add_job(run_yahoo_stock_news, 'interval', minutes=15)
+    # scheduler.add_job(run_high_price_update_job, 'interval', hours=1)
+    # scheduler.add_job(run_previous_close_snapshot_job, 'interval', hours=1)
+    # scheduler.add_job(run_realtime_price_monitor_job, 'interval', minutes=1)
+    # scheduler.add_job(run_previous_high_snapshot_job, 'interval', hours=1)
+    # scheduler.add_job(run_previous_low_snapshot_job, 'interval', hours=1)
     # run_high_price_update_job()
     # run_previous_close_snapshot_job()
+    # run_realtime_price_monitor_job()
+
+    # run_previous_high_snapshot_job()
+    # run_previous_low_snapshot_job()
     run_realtime_price_monitor_job()
-    scheduler.start()
+    
+    scheduler.start()   
     

@@ -1,8 +1,6 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
 from app.market_price.infra.model.entity.price_snapshots import PriceSnapshot
-
-
+from datetime import timedelta, datetime
 class PriceSnapshotRepository:
     def __init__(self, session: Session):
         self.session = session
@@ -17,6 +15,44 @@ class PriceSnapshotRepository:
             .order_by(PriceSnapshot.snapshot_at.desc())
             .first()
         )
+
+    def get_previous_high(self, symbol: str) -> float | None:
+            latest = self.get_latest_by_symbol(symbol)
+            if not latest:
+                return None
+
+            prev_day = latest.snapshot_at.date() - timedelta(days=1)
+            snapshot = (
+                self.session.query(PriceSnapshot)
+                .filter(
+                    PriceSnapshot.symbol == symbol,
+                    PriceSnapshot.snapshot_at >= datetime.combine(prev_day, datetime.min.time()),
+                    PriceSnapshot.snapshot_at < datetime.combine(prev_day, datetime.max.time()),
+                    PriceSnapshot.high != None
+                )
+                .order_by(PriceSnapshot.snapshot_at.desc())
+                .first()
+            )
+            return snapshot.high if snapshot else None
+
+    def get_previous_low(self, symbol: str) -> float | None:
+        latest = self.get_latest_by_symbol(symbol)
+        if not latest:
+            return None
+
+        prev_day = latest.snapshot_at.date() - timedelta(days=1)
+        snapshot = (
+            self.session.query(PriceSnapshot)
+            .filter(
+                PriceSnapshot.symbol == symbol,
+                PriceSnapshot.snapshot_at >= datetime.combine(prev_day, datetime.min.time()),
+                PriceSnapshot.snapshot_at < datetime.combine(prev_day, datetime.max.time()),
+                PriceSnapshot.low != None
+            )
+            .order_by(PriceSnapshot.snapshot_at.desc())
+            .first()
+        )
+        return snapshot.low if snapshot else None
 
     def get_by_symbol_and_time(self, symbol: str, snapshot_at: datetime) -> PriceSnapshot | None:
         return (

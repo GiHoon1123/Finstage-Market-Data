@@ -2,7 +2,6 @@ from sqlalchemy import Column, BigInteger, String, Float, DateTime
 from datetime import datetime
 from app.common.infra.database.config.database_config import Base
 
-
 class PriceAlertLog(Base):
     __tablename__ = "price_alert_logs"
 
@@ -16,21 +15,25 @@ class PriceAlertLog(Base):
     - price_drop: 전일 종가 기준 급락 (기준 등락률 이하 하락)
     - new_high: 상장 후 최고가 갱신
     - drop_from_high: 상장 후 최고가 대비 급락 (기준 등락률 이하 하락)
+    - break_prev_high: 전일 고점 돌파
+    - break_prev_low: 전일 저점 하회
     """)
 
     base_type = Column(String(30), nullable=False, comment="""
     기준 가격 종류
     - prev_close: 전일 종가 기준
     - all_time_high: 상장 후 최고가 기준
+    - prev_high: 전일 고점 기준
+    - prev_low: 전일 저점 기준
     """)
 
-    base_price = Column(Float, nullable=False, comment="비교 기준 가격 (전일 종가 또는 최고가)")
+    base_price = Column(Float, nullable=False, comment="비교 기준 가격 (예: 전일 종가, 최고가, 고점, 저점)")
     current_price = Column(Float, nullable=False, comment="현재 시세")
 
     threshold_percent = Column(Float, nullable=False, comment="알림 기준 등락률 (예: 5.0)")
     actual_percent = Column(Float, nullable=False, comment="실제 변동률 (예: -5.8)")
 
-    base_time = Column(DateTime, nullable=False, comment="기준 가격의 발생 시각 (예: 종가 또는 최고가 시점)")
+    base_time = Column(DateTime, nullable=False, comment="기준 가격 발생 시각 (예: 종가, 최고가, 고점 등)")
     triggered_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="알림 발생 시각")
 
     def __repr__(self):

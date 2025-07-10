@@ -13,7 +13,8 @@ MYSQL_DB = "finstage_market_data"
 MYSQL_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
 
 # SQLAlchemy 엔진 생성
-engine = create_engine(MYSQL_URL, echo=True)
+# engine = create_engine(MYSQL_URL, echo=True)
+engine = create_engine(MYSQL_URL, echo=False)
 
 # 세션 생성기
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

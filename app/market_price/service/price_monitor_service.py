@@ -11,6 +11,8 @@ from app.common.utils.telegram_notifier import (
     send_price_drop_message,
     send_new_high_message,
     send_drop_from_high_message,
+    send_break_previous_high,
+    send_break_previous_low, 
 )
 
 
@@ -38,9 +40,8 @@ class PriceMonitorService:
             return CATEGORY_THRESHOLDS[category][alert_type]
 
         return None
-
     def check_price_against_baseline(self, symbol: str):
-        """전일 종가 및 상장 후 최고가 기준으로 가격을 모니터링하고, 조건 만족 시 알림 전송"""
+        """전일 종가, 상장 후 최고가, 전일 고/저점 기준으로 가격을 모니터링하고 알림 전송"""
         current_price = self.fetch_latest_price(symbol)
         if current_price is None:
             print(f"⚠️ {symbol} 현재 가격 가져오기 실패")
@@ -50,7 +51,7 @@ class PriceMonitorService:
 
         ### 1. 전일 종가 기준 ###
         prev_snapshot = self.snapshot_service.get_latest_snapshot(symbol)
-        if prev_snapshot:
+        if prev_snapshot and prev_snapshot.close is not None:
             diff = current_price - prev_snapshot.close
             percent = (diff / prev_snapshot.close) * 100
             print(f"📊 {symbol} 전일 종가 기준: 현재가 {current_price:.2f}, 변동률 {percent:.2f}%")
@@ -89,7 +90,7 @@ class PriceMonitorService:
                         triggered_at=now,
                     )
 
-        ### 2. 최고가 기준 ###
+        ### 2. 상장 후 최고가 기준 ###
         high_record = self.high_service.get_latest_record(symbol)
         if high_record:
             diff = current_price - high_record.price
@@ -126,5 +127,41 @@ class PriceMonitorService:
                         threshold_percent=abs(drop_from_high_threshold),
                         actual_percent=percent,
                         base_time=high_record.recorded_at,
+                        triggered_at=now,
+                    )
+
+        ### 3. 전일 고점 / 저점 기준 ###
+        prev_high = self.snapshot_service.get_previous_high(symbol)
+        prev_low = self.snapshot_service.get_previous_low(symbol)
+
+        if prev_high:
+            if current_price > prev_high:
+                if not self.alert_log_service.exists_recent_alert(symbol, "break_prev_high", "prev_high", 60):
+                    send_break_previous_high(symbol, current_price, prev_high, now)
+                    self.alert_log_service.save_alert(
+                        symbol=symbol,
+                        alert_type="break_prev_high",
+                        base_type="prev_high",
+                        base_price=prev_high,
+                        current_price=current_price,
+                        threshold_percent=0.0,
+                        actual_percent=((current_price - prev_high) / prev_high) * 100,
+                        base_time=now.replace(hour=0, minute=0, second=0, microsecond=0),
+                        triggered_at=now,
+                    )
+
+        if prev_low:
+            if current_price < prev_low:
+                if not self.alert_log_service.exists_recent_alert(symbol, "break_prev_low", "prev_low", 60):
+                    send_break_previous_low(symbol, current_price, prev_low, now)
+                    self.alert_log_service.save_alert(
+                        symbol=symbol,
+                        alert_type="break_prev_low",
+                        base_type="prev_low",
+                        base_price=prev_low,
+                        current_price=current_price,
+                        threshold_percent=0.0,
+                        actual_percent=((current_price - prev_low) / prev_low) * 100,
+                        base_time=now.replace(hour=0, minute=0, second=0, microsecond=0),
                         triggered_at=now,
                     )

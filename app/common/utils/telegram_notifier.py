@@ -50,6 +50,27 @@ def send_price_drop_message(symbol: str, current_price: float, prev_close: float
     )
     _send_basic(symbol, message)
 
+def send_break_previous_high(symbol: str, current_price: float, previous_high: float, now: datetime):
+    name = SYMBOL_PRICE_MAP.get(symbol, symbol)
+    message = (
+        f"🚨 <b>{name}({symbol}) 전일 고점 돌파!</b>\n\n"
+        f"💵 현재가: {current_price:.2f}\n"
+        f"🔺 전일 고점: {previous_high:.2f}\n"
+        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    _send_basic(symbol, message)
+
+
+def send_break_previous_low(symbol: str, current_price: float, previous_low: float, now: datetime):
+    name = SYMBOL_PRICE_MAP.get(symbol, symbol)
+    message = (
+        f"⚠️ <b>{name}({symbol}) 전일 저점 하회!</b>\n\n"
+        f"💵 현재가: {current_price:.2f}\n"
+        f"🔻 전일 저점: {previous_low:.2f}\n"
+        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    _send_basic(symbol, message)
+
 
 def send_new_high_message(symbol: str, current_price: float, now: datetime):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)

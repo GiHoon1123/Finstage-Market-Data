@@ -11,7 +11,6 @@ class PriceSnapshot(Base):
     symbol = Column(String(20), nullable=False, index=True, comment="종목 코드 (예: AAPL, ^IXIC)")
     source = Column(String(30), nullable=False, comment="데이터 제공자 (예: yahoo, investing)")
     
-    open = Column(Float, nullable=True, comment="시가")
     close = Column(Float, nullable=True, comment="종가")
     high = Column(Float, nullable=True, comment="고가")
     low = Column(Float, nullable=True, comment="저가")
