@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from app.market_price.infra.client.yahoo_price_client import YahooPriceClient
+from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.market_price.service.price_snapshot_service import PriceSnapshotService
 from app.market_price.service.price_high_record_service import PriceHighRecordService
 from app.market_price.service.price_alert_log_service import PriceAlertLogService

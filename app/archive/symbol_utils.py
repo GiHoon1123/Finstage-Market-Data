@@ -1,5 +1,5 @@
 from typing import Optional, List
-from app.common.constants.symbols import SYMBOL_REGISTRY, SymbolInfo
+from app.archive.symbols import SYMBOL_REGISTRY, SymbolInfo
 
 def get_symbol_name(symbol: str) -> str:
     return SYMBOL_REGISTRY.get(symbol, SymbolInfo(name=symbol, category="기타", monitoring_category="기타")).name

@@ -1,7 +1,7 @@
 from datetime import datetime
 from app.market_price.infra.model.repository.price_snapshot_repository import PriceSnapshotRepository
 from app.market_price.infra.model.entity.price_snapshots import PriceSnapshot
-from app.market_price.infra.client.yahoo_price_client import YahooPriceClient
+from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.common.infra.database.config.database_config import SessionLocal
 
 

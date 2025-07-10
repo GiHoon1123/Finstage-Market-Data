@@ -1,6 +1,6 @@
 from app.market_price.infra.model.repository.price_high_record_repository import PriceHighRecordRepository
 from app.market_price.infra.model.entity.price_high_records import PriceHighRecord
-from app.market_price.infra.client.yahoo_price_client import YahooPriceClient
+from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.common.infra.database.config.database_config import SessionLocal
 
 
