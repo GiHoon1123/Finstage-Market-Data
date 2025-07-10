@@ -1,3 +1,8 @@
+from app.common.constants.symbol_names import (
+    INDEX_SYMBOLS,
+    FUTURES_SYMBOLS,
+    STOCK_SYMBOLS,)
+
 YAHOO_NEWS_SYMBOLS = {
     # 지수
     "^IXIC": "나스닥 지수",
@@ -14,15 +19,13 @@ YAHOO_NEWS_SYMBOLS = {
     "AMZN": "아마존",
     "GOOGL": "구글",
     "TSLA": "테슬라",
-    "GRYP": "그리폰 디지털 마이닝",
     "MSFT": "마이크로소프트",
     "META": "메타",
-    "PLTR": "팔란티어",
+    "NVDA": "엔비디아"
 }
 
 YAHOO_NEWS_CATEGORIES = {
-    **{symbol: "지수" for symbol in ["^IXIC", "^GSPC", "^DJI"]},
-    **{symbol: "선물" for symbol in ["ES=F", "NQ=F", "YM=F"]},
-    **{symbol: "종목" for symbol in [
-        "AAPL", "AMZN", "GOOGL", "TSLA", "GRYP", "MSFT", "META", "PLTR"]},
+    **{symbol: "지수" for symbol in INDEX_SYMBOLS},
+    **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
+    **{symbol: "종목" for symbol in STOCK_SYMBOLS},
 }

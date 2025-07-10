@@ -18,17 +18,31 @@ STOCK_SYMBOLS = {
     "AMZN": "아마존",
     "GOOGL": "구글",
     "TSLA": "테슬라",
-    "GRYP": "그리폰 디지털 마이닝",
     "MSFT": "마이크로소프트",
     "META": "메타",
-    "PLTR": "팔란티어",
-    "BTBT": "비트 디지털"
+    "NVDA": "엔비디아"
+}
+
+# ✅ LONG ETF (Exchange Traded Funds)
+LONG_ETF_SYMBOLS = {    
+    "SOXL": "디렉시온 미국 반도체 3배 ETF",
+    "TQQQ": "프로셰어즈 QQQ 3배 ETF",
+    "TSLL": "디렉시온 테슬라 2배 ETF",
+    "NVDL": "그래닛셰어즈 엔비디아 데일리 2배 롱 ETF",
+}
+
+# ✅ SHORT ETF (Exchange Traded Funds)
+SHORT_ETF_SYMBOLS = {
+    "SOXS": "디렉시온 미국 반도체 3배 인버스 ETF",
+    "SQQQ": "프로셰어즈 QQQ 3배 인버스 ETF",
+    "TSLQ": "TRADR 테슬라 2배 인버스 ETF",
+    "NVD": "그래닛셰어즈 엔비디아 데일리 2배 인버스 ETF",
 }
 
 # ✅ 커뮤니티 (Community)
-COMMUNITY_SYMBOLS = {
-    "DC_US": "디시 미국주식 갤러리"
-}
+# COMMUNITY_SYMBOLS = {
+#     "DC_US": "디시 미국주식 갤러리"
+# }
 
 
 # ✅ 뉴스 공급자 (Investing RSS 카테고리)
@@ -44,7 +58,7 @@ SYMBOL_NAME_MAP = {
     **INDEX_SYMBOLS,
     **FUTURES_SYMBOLS,
     **STOCK_SYMBOLS,
-    **COMMUNITY_SYMBOLS,
+    # **COMMUNITY_SYMBOLS,
     **INVESTING_SYMBOLS
 }
 
@@ -58,6 +72,14 @@ SYMBOL_CATEGORY_MAP = {
     **{symbol: "지수" for symbol in INDEX_SYMBOLS},
     **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
     **{symbol: "종목" for symbol in STOCK_SYMBOLS},
-    **{symbol: "커뮤니티" for symbol in COMMUNITY_SYMBOLS},
-    **{symbol: "국제뉴스" for symbol in INVESTING_SYMBOLS}
+    **{symbol: "국제뉴스" for symbol in INVESTING_SYMBOLS},
+    # **{symbol: "커뮤니티" for symbol in COMMUNITY_SYMBOLS},
+}
+
+SYMBOL_MONITORING_CATEGORY_MAP= {
+    **{symbol: "지수" for symbol in INDEX_SYMBOLS},
+    **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
+    **{symbol: "종목" for symbol in STOCK_SYMBOLS},
+    **{symbol: "ETF(Long)" for symbol in LONG_ETF_SYMBOLS},
+    **{symbol: "ETF(Short)" for symbol in SHORT_ETF_SYMBOLS},
 }
