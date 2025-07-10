@@ -47,14 +47,14 @@ class PriceMonitorService:
             print(f"⚠️ {symbol} 현재 가격 가져오기 실패")
             return
 
-        now = datetime.now()
+        now = datetime.utcnow()
 
         ### 1. 전일 종가 기준 ###
         prev_snapshot = self.snapshot_service.get_latest_snapshot(symbol)
         if prev_snapshot and prev_snapshot.close is not None:
             diff = current_price - prev_snapshot.close
             percent = (diff / prev_snapshot.close) * 100
-            print(f"📊 {symbol} 전일 종가 기준: 현재가 {current_price:.2f}, 변동률 {percent:.2f}%")
+            print(f"📊 {symbol} 전일 종가 기준: 현재가 {current_price:.2f}, 기준가 {prev_snapshot.close:.2f}, 변동률 {percent:.2f}%")
 
             # 상승 알림
             rise_threshold = self._get_threshold(symbol, "price_rise")
@@ -95,7 +95,7 @@ class PriceMonitorService:
         if high_record:
             diff = current_price - high_record.price
             percent = (diff / high_record.price) * 100
-            print(f"🚨 {symbol} 최고가 기준: 현재가 {current_price:.2f}, 변동률 {percent:.2f}%")
+            print(f"🚨 {symbol} 최고가 기준: 현재가 {current_price:.2f}, 기준가 {high_record.price:.2f}, 변동률 {percent:.2f}%")
 
             # 최고가 갱신
             if current_price > high_record.price:
@@ -135,6 +135,9 @@ class PriceMonitorService:
         prev_low = self.snapshot_service.get_previous_low(symbol)
 
         if prev_high:
+            diff = current_price - prev_high
+            percent = (diff / prev_high) * 100
+            print(f"📈 {symbol} 전일 고점 기준: 현재가 {current_price:.2f}, 기준가 {prev_high:.2f}, 변동률 {percent:.2f}%")
             if current_price > prev_high:
                 if not self.alert_log_service.exists_recent_alert(symbol, "break_prev_high", "prev_high", 60):
                     send_break_previous_high(symbol, current_price, prev_high, now)
@@ -151,6 +154,9 @@ class PriceMonitorService:
                     )
 
         if prev_low:
+            diff = current_price - prev_low
+            percent = (diff / prev_low) * 100
+            print(f"📉 {symbol} 전일 저점 기준: 현재가 {current_price:.2f}, 기준가 {prev_low:.2f}, 변동률 {percent:.2f}%")
             if current_price < prev_low:
                 if not self.alert_log_service.exists_recent_alert(symbol, "break_prev_low", "prev_low", 60):
                     send_break_previous_low(symbol, current_price, prev_low, now)

@@ -122,7 +122,7 @@ def start_scheduler():
     # scheduler.add_job(run_previous_low_snapshot_job, 'interval', hours=1)
     # run_high_price_update_job()
     # run_previous_close_snapshot_job()
-    # run_realtime_price_monitor_job()
+    run_realtime_price_monitor_job()
 
     # run_previous_high_snapshot_job()
     # run_previous_low_snapshot_job()
