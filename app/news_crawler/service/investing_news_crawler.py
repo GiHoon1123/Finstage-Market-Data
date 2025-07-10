@@ -23,7 +23,7 @@ class InvestingNewsCrawler(BaseCrawler):
             items = root.find("channel").findall("item")
             news_list = []
 
-            for item in items[:2]:  
+            for item in items[:1]:  
                 title = item.findtext("title")
                 url = item.findtext("link")
                 summary = item.findtext("description")
