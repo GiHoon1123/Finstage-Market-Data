@@ -3,6 +3,7 @@ import requests
 from datetime import datetime
 from app.common.constants.symbol_names import SYMBOL_CATEGORY_MAP, SYMBOL_NAME_MAP, SYMBOL_PRICE_MAP
 import traceback
+import httpx
 
 
 # -----------------------------
@@ -129,3 +130,34 @@ def _send_basic(symbol: str, message: str, is_news: bool = False):
     except Exception as e:
         print(f"❌ 텔레그램 전송 중 예외 발생: {e}")
         traceback.print_exc()
+
+
+
+
+
+async def send_text_message_async(message: str):
+    """📨 비동기로 텍스트 메시지를 텔레그램에 전송"""
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ TELEGRAM 환경변수가 설정되지 않았습니다.")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload)
+            if response.status_code != 200:
+                print(f"❌ 비동기 텔레그램 전송 실패: {response.status_code} - {response.text}")
+            else:
+                print("📨 비동기 텔레그램 전송 완료")
+        except Exception as e:
+            print(f"❌ 비동기 텔레그램 전송 중 예외 발생: {e}")
+

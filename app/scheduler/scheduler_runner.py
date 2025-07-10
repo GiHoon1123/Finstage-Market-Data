@@ -126,7 +126,7 @@ def start_scheduler():
 
     # run_previous_high_snapshot_job()
     # run_previous_low_snapshot_job()
-    run_realtime_price_monitor_job()
+    # run_realtime_price_monitor_job()
     
     scheduler.start()   
     

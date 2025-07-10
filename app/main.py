@@ -5,6 +5,7 @@ from app.common.infra.database.config.database_config import Base, engine
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router 
+from app.message_notification.web.route.message_router import router as message_router
 import os
 from dotenv import load_dotenv
 from app.scheduler.scheduler_runner import start_scheduler
@@ -24,7 +25,8 @@ app = FastAPI(
 # 라우터 등록
 app.include_router(financial_router, prefix="/api/financials", tags=["Financial"])
 app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
-app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])  # ✅ 추가
+app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])  
+app.include_router(message_router, prefix="/api/messages", tags=["Messages"])
 
 
 # DB 테이블 생성
