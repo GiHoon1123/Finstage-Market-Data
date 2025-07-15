@@ -1,7 +1,11 @@
 import os
 import requests
 from datetime import datetime
-from app.common.constants.symbol_names import SYMBOL_CATEGORY_MAP, SYMBOL_NAME_MAP, SYMBOL_PRICE_MAP
+from app.common.constants.symbol_names import (
+    SYMBOL_CATEGORY_MAP,
+    SYMBOL_NAME_MAP,
+    SYMBOL_PRICE_MAP,
+)
 import traceback
 import httpx
 
@@ -10,9 +14,14 @@ import httpx
 # 🗞 뉴스 전송 함수
 # -----------------------------
 
-def send_news_telegram_message(title: str, summary: str, url: str, published_at: datetime, symbol: str) -> None:
+
+def send_news_telegram_message(
+    title: str, summary: str, url: str, published_at: datetime, symbol: str
+) -> None:
     display_name = SYMBOL_NAME_MAP.get(symbol, "알 수 없는 대상")
-    published_str = published_at.strftime("%Y-%m-%d %H:%M:%S") if published_at else "날짜 없음"
+    published_str = (
+        published_at.strftime("%Y-%m-%d %H:%M:%S") if published_at else "날짜 없음"
+    )
 
     message = f"""📰 <b>{title}</b>
 
@@ -28,7 +37,10 @@ def send_news_telegram_message(title: str, summary: str, url: str, published_at:
 # 📈 가격 알림 메시지 함수들
 # -----------------------------
 
-def send_price_rise_message(symbol: str, current_price: float, prev_close: float, percent: float, now: datetime):
+
+def send_price_rise_message(
+    symbol: str, current_price: float, prev_close: float, percent: float, now: datetime
+):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
     message = (
         f"📈 <b>{name}({symbol}) 전일 대비 상승!</b>\n\n"
@@ -40,7 +52,9 @@ def send_price_rise_message(symbol: str, current_price: float, prev_close: float
     _send_basic(symbol, message)
 
 
-def send_price_drop_message(symbol: str, current_price: float, prev_close: float, percent: float, now: datetime):
+def send_price_drop_message(
+    symbol: str, current_price: float, prev_close: float, percent: float, now: datetime
+):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
     message = (
         f"📉 <b>{name}({symbol}) 전일 대비 하락!</b>\n\n"
@@ -51,24 +65,33 @@ def send_price_drop_message(symbol: str, current_price: float, prev_close: float
     )
     _send_basic(symbol, message)
 
-def send_break_previous_high(symbol: str, current_price: float, previous_high: float, now: datetime):
+
+def send_break_previous_high(
+    symbol: str, current_price: float, previous_high: float, now: datetime
+):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
+    percent_gain = ((current_price - previous_high) / previous_high) * 100
     message = (
         f"🚨 <b>{name}({symbol}) 전일 고점 돌파!</b>\n\n"
         f"💵 현재가: {current_price:.2f}\n"
         f"🔺 전일 고점: {previous_high:.2f}\n"
-        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"📊 돌파폭: <b>+{percent_gain:.2f}%</b>\n"
+        f"🕒 돌파 시점: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
     )
     _send_basic(symbol, message)
 
 
-def send_break_previous_low(symbol: str, current_price: float, previous_low: float, now: datetime):
+def send_break_previous_low(
+    symbol: str, current_price: float, previous_low: float, now: datetime
+):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
+    percent_drop = ((current_price - previous_low) / previous_low) * 100
     message = (
         f"⚠️ <b>{name}({symbol}) 전일 저점 하회!</b>\n\n"
         f"💵 현재가: {current_price:.2f}\n"
         f"🔻 전일 저점: {previous_low:.2f}\n"
-        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"📊 하회폭: <b>{percent_drop:.2f}%</b>\n"
+        f"🕒 하회 시점: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
     )
     _send_basic(symbol, message)
 
@@ -78,19 +101,26 @@ def send_new_high_message(symbol: str, current_price: float, now: datetime):
     message = (
         f"🚀 <b>{name}({symbol}) 최고가 갱신!</b>\n\n"
         f"📈 새로운 최고가: <b>{current_price:.2f}</b>\n"
-        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"🕒 갱신 시점: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
     )
     _send_basic(symbol, message)
 
 
-def send_drop_from_high_message(symbol: str, current_price: float, high_price: float, percent: float, now: datetime):
+def send_drop_from_high_message(
+    symbol: str,
+    current_price: float,
+    high_price: float,
+    percent: float,
+    now: datetime,
+    high_recorded_at: datetime,
+):
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
     message = (
         f"🔻 <b>{name}({symbol}) 최고가 대비 하락</b>\n\n"
         f"📉 현재가: {current_price:.2f}\n"
-        f"📈 최고가: {high_price:.2f}\n"
+        f"📈 최고가: {high_price:.2f} ({high_recorded_at.strftime('%Y-%m-%d %H:%M:%S')} UTC)\n"
         f"📊 낙폭: <b>{percent:.2f}%</b>\n"
-        f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"🕒 하락 시점: {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
     )
     _send_basic(symbol, message)
 
@@ -98,6 +128,7 @@ def send_drop_from_high_message(symbol: str, current_price: float, high_price: f
 # -----------------------------
 # 공통 전송 함수
 # -----------------------------
+
 
 def _send_basic(symbol: str, message: str, is_news: bool = False):
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -118,7 +149,7 @@ def _send_basic(symbol: str, message: str, is_news: bool = False):
         "chat_id": TELEGRAM_CHAT_ID,
         "text": full_message,
         "parse_mode": "HTML",
-        "disable_web_page_preview": False
+        "disable_web_page_preview": False,
     }
 
     try:
@@ -130,9 +161,6 @@ def _send_basic(symbol: str, message: str, is_news: bool = False):
     except Exception as e:
         print(f"❌ 텔레그램 전송 중 예외 발생: {e}")
         traceback.print_exc()
-
-
-
 
 
 async def send_text_message_async(message: str):
@@ -148,16 +176,17 @@ async def send_text_message_async(message: str):
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "HTML",
-        "disable_web_page_preview": False
+        "disable_web_page_preview": False,
     }
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(url, json=payload)
             if response.status_code != 200:
-                print(f"❌ 비동기 텔레그램 전송 실패: {response.status_code} - {response.text}")
+                print(
+                    f"❌ 비동기 텔레그램 전송 실패: {response.status_code} - {response.text}"
+                )
             else:
                 print("📨 비동기 텔레그램 전송 완료")
         except Exception as e:
             print(f"❌ 비동기 텔레그램 전송 중 예외 발생: {e}")
-
