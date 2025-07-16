@@ -24,6 +24,13 @@ from app.technical_analysis.service.signal_storage_service import SignalStorageS
 from app.technical_analysis.service.technical_monitor_service import (
     TechnicalMonitorService,
 )
+from app.technical_analysis.service.backtesting_service import BacktestingService
+from app.technical_analysis.service.outcome_tracking_service import (
+    OutcomeTrackingService,
+)
+from app.technical_analysis.service.pattern_analysis_service import (
+    PatternAnalysisService,
+)
 from app.technical_analysis.infra.model.repository.technical_signal_repository import (
     TechnicalSignalRepository,
 )
@@ -35,6 +42,9 @@ router = APIRouter()
 # 서비스 인스턴스들
 signal_storage_service = SignalStorageService()
 technical_monitor_service = TechnicalMonitorService()
+backtesting_service = BacktestingService()
+outcome_tracking_service = OutcomeTrackingService()
+pattern_analysis_service = PatternAnalysisService()
 
 
 # =============================================================================
@@ -476,3 +486,500 @@ async def get_supported_signal_types() -> Dict[str, Any]:
         "categories": list(signal_types.keys()),
         "description": "기술적 분석에서 지원하는 모든 신호 타입들입니다.",
     }
+
+
+# =============================================================================
+# Phase 2: 백테스팅 및 성과 분석 API
+# =============================================================================
+
+
+@router.get("/performance/all", summary="전체 신호 성과 분석")
+async def get_all_signals_performance(
+    timeframe_eval: str = Query("1d", description="평가 기간 (1h, 1d, 1w, 1m)"),
+    min_samples: int = Query(10, description="최소 샘플 수", ge=1, le=100),
+) -> Dict[str, Any]:
+    """
+    모든 신호 타입의 성과를 종합 분석합니다.
+
+    각 신호의 성공률, 평균 수익률, 리스크 지표 등을 제공하여
+    어떤 신호가 가장 효과적인지 파악할 수 있습니다.
+
+    Args:
+        timeframe_eval: 평가할 시간 기준 (1h=1시간후, 1d=1일후, 1w=1주후, 1m=1개월후)
+        min_samples: 분석에 포함할 최소 신호 개수 (이보다 적으면 제외)
+
+    Returns:
+        전체 신호 성과 분석 결과
+        - summary: 전체 요약 통계
+        - by_signal_type: 신호 타입별 상세 성과
+        - best_performers: 가장 좋은 성과를 보인 신호들
+        - recommendations: AI 추천 사항
+    """
+    try:
+        result = backtesting_service.analyze_all_signals_performance(
+            timeframe_eval=timeframe_eval, min_samples=min_samples
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"전체 성과 분석 실패: {str(e)}")
+
+
+@router.get("/performance/{signal_type}", summary="특정 신호 타입 성과 분석")
+async def get_signal_type_performance(
+    signal_type: str = Path(..., description="신호 타입 (예: MA200_breakout_up)"),
+    symbol: Optional[str] = Query(None, description="심볼 필터 (예: NQ=F)"),
+) -> Dict[str, Any]:
+    """
+    특정 신호 타입의 상세 성과를 분석합니다.
+
+    시간대별 성과, 리스크 지표, 월별 성과 등을 제공하여
+    해당 신호의 특성을 깊이 있게 파악할 수 있습니다.
+
+    Args:
+        signal_type: 분석할 신호 타입
+        symbol: 특정 심볼로 필터링 (선택사항)
+
+    Returns:
+        해당 신호의 상세 성과 분석
+        - timeframe_performance: 1시간/1일/1주/1개월 후 성과
+        - risk_metrics: 최대손실, 변동성, 샤프비율 등
+        - monthly_performance: 월별 성과 추이
+        - signal_quality_score: AI가 계산한 신호 품질 점수
+    """
+    try:
+        result = backtesting_service.analyze_signal_type_performance(
+            signal_type=signal_type, symbol=symbol
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"신호 타입 성과 분석 실패: {str(e)}"
+        )
+
+
+@router.post("/backtest/strategy", summary="매매 전략 백테스팅")
+async def backtest_trading_strategy(
+    signal_types: List[str] = Query(..., description="사용할 신호 타입들"),
+    initial_capital: float = Query(10000.0, description="초기 자본금 ($)", ge=1000),
+    position_size: float = Query(
+        0.1, description="포지션 크기 (자본금 대비 비율)", ge=0.01, le=1.0
+    ),
+    stop_loss: Optional[float] = Query(
+        None, description="손절매 비율 (예: -0.05 = -5%)"
+    ),
+    take_profit: Optional[float] = Query(
+        None, description="익절매 비율 (예: 0.10 = +10%)"
+    ),
+    days: int = Query(90, description="백테스팅 기간 (일)", ge=7, le=365),
+) -> Dict[str, Any]:
+    """
+    매매 전략을 백테스팅하여 성과를 시뮬레이션합니다.
+
+    여러 신호를 조합한 전략의 수익률, 승률, 최대손실 등을 계산하여
+    실제 매매 전에 전략의 효과를 검증할 수 있습니다.
+
+    Args:
+        signal_types: 전략에 사용할 신호 타입들 (예: ["MA200_breakout_up", "RSI_oversold"])
+        initial_capital: 시뮬레이션 시작 자본금
+        position_size: 한 번에 투자할 비율 (0.1 = 자본금의 10%)
+        stop_loss: 손절매 기준 (-0.05 = -5% 손실시 매도)
+        take_profit: 익절매 기준 (0.10 = +10% 수익시 매도)
+        days: 백테스팅할 기간 (일수)
+
+    Returns:
+        백테스팅 결과
+        - performance: 총 수익률, 승률, 최대손실 등 핵심 지표
+        - trades: 실제 거래 내역 (최근 20개)
+        - strategy_config: 사용된 전략 설정
+    """
+    try:
+        # 날짜 범위 계산
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        result = backtesting_service.simulate_trading_strategy(
+            signal_types=signal_types,
+            initial_capital=initial_capital,
+            position_size=position_size,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"백테스팅 실패: {str(e)}")
+
+
+@router.get("/quality/{signal_type}", summary="신호 품질 평가")
+async def evaluate_signal_quality(
+    signal_type: str = Path(..., description="평가할 신호 타입"),
+    symbol: Optional[str] = Query(None, description="심볼 필터"),
+) -> Dict[str, Any]:
+    """
+    신호의 품질을 종합적으로 평가하여 등급을 매깁니다.
+
+    성공률, 수익률, 리스크 등을 종합하여 A~F 등급으로 평가하고
+    해당 신호의 강점과 약점을 분석합니다.
+
+    Args:
+        signal_type: 평가할 신호 타입
+        symbol: 특정 심볼로 필터링 (선택사항)
+
+    Returns:
+        신호 품질 평가 결과
+        - quality_assessment: 종합 점수, 등급, 추천사항
+        - detailed_analysis: 강점, 약점, 샘플 크기
+        - performance_metrics: 상세 성과 지표
+    """
+    try:
+        result = backtesting_service.evaluate_signal_quality(
+            signal_type=signal_type, symbol=symbol
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"신호 품질 평가 실패: {str(e)}")
+
+
+# =============================================================================
+# Phase 2: 결과 추적 API
+# =============================================================================
+
+
+@router.post("/outcomes/track/{signal_id}", summary="신호 결과 추적 시작")
+async def start_outcome_tracking(
+    signal_id: int = Path(..., description="추적할 신호 ID"),
+) -> Dict[str, Any]:
+    """
+    특정 신호에 대한 결과 추적을 시작합니다.
+
+    신호 발생 후 1시간, 4시간, 1일, 1주일, 1개월 후의 가격을
+    자동으로 수집하여 실제 성과를 측정합니다.
+
+    Args:
+        signal_id: 추적을 시작할 신호의 ID
+
+    Returns:
+        추적 시작 결과
+    """
+    try:
+        result = outcome_tracking_service.initialize_outcome_tracking(signal_id)
+
+        if result is None:
+            raise HTTPException(
+                status_code=404, detail="신호를 찾을 수 없거나 추적 시작 실패"
+            )
+
+        return {
+            "message": "결과 추적이 시작되었습니다",
+            "signal_id": signal_id,
+            "outcome_id": result.id,
+            "tracking_started_at": result.created_at.isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"결과 추적 시작 실패: {str(e)}")
+
+
+@router.put("/outcomes/update", summary="결과 추적 업데이트")
+async def update_outcomes(
+    hours_old: int = Query(1, description="몇 시간 이상 된 것만 업데이트", ge=1, le=24),
+) -> Dict[str, Any]:
+    """
+    미완료된 결과 추적들을 업데이트합니다.
+
+    스케줄러에서 주기적으로 호출하거나, 수동으로 실행하여
+    신호 발생 후 경과된 시간에 따라 가격과 수익률을 업데이트합니다.
+
+    Args:
+        hours_old: 몇 시간 이상 된 신호만 업데이트할지 설정
+
+    Returns:
+        업데이트 결과 통계
+    """
+    try:
+        result = outcome_tracking_service.update_outcomes(hours_old=hours_old)
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"결과 업데이트 실패: {str(e)}")
+
+
+@router.get("/outcomes/{signal_id}", summary="신호 결과 조회")
+async def get_signal_outcome(
+    signal_id: int = Path(..., description="조회할 신호 ID"),
+) -> Dict[str, Any]:
+    """
+    특정 신호의 결과 추적 데이터를 조회합니다.
+
+    신호 발생 후 각 시간대별 가격 변화와 수익률을 확인할 수 있습니다.
+
+    Args:
+        signal_id: 조회할 신호의 ID
+
+    Returns:
+        신호 결과 데이터
+        - signal: 원본 신호 정보
+        - outcome: 시간대별 가격 및 수익률 데이터
+        - analysis: 추가 분석 정보
+        - tracking_status: 추적 완료 여부
+    """
+    try:
+        result = outcome_tracking_service.get_signal_outcome(signal_id)
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"신호 결과 조회 실패: {str(e)}")
+
+
+@router.post("/outcomes/test/{signal_id}", summary="결과 추적 테스트")
+async def test_outcome_tracking(
+    signal_id: int = Path(..., description="테스트할 신호 ID"),
+) -> Dict[str, Any]:
+    """
+    결과 추적 기능을 테스트합니다. (개발용)
+
+    실제 시간 경과를 기다리지 않고 가상의 가격 데이터를 생성하여
+    결과 추적 시스템이 정상 동작하는지 확인합니다.
+
+    Args:
+        signal_id: 테스트할 신호 ID
+
+    Returns:
+        테스트 결과
+    """
+    try:
+        result = outcome_tracking_service.test_outcome_tracking(signal_id)
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"결과 추적 테스트 실패: {str(e)}")
+
+
+# =============================================================================
+# Phase 3: 패턴 분석 API
+# =============================================================================
+
+
+@router.post("/patterns/discover/{symbol}", summary="패턴 자동 발견")
+async def discover_patterns(
+    symbol: str = Path(..., description="분석할 심볼 (예: NQ=F)"),
+    timeframe: str = Query("15min", description="시간대 (1min, 15min, 1day)"),
+) -> Dict[str, Any]:
+    """
+    특정 심볼에서 반복되는 신호 패턴을 자동으로 발견합니다.
+
+    여러 기술적 신호들이 특정 순서로 발생하는 패턴을 찾아내어
+    더 정확한 매매 신호를 만들 수 있습니다.
+
+    Args:
+        symbol: 패턴을 찾을 심볼
+        timeframe: 분석할 시간대
+
+    Returns:
+        발견된 패턴 정보
+        - discovered_patterns: 발견된 패턴 후보 개수
+        - saved_patterns: 실제 저장된 패턴 개수
+        - patterns: 저장된 패턴들의 상세 정보
+    """
+    try:
+        result = pattern_analysis_service.discover_patterns(
+            symbol=symbol, timeframe=timeframe
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"패턴 발견 실패: {str(e)}")
+
+
+@router.get("/patterns/analysis", summary="패턴 성과 분석")
+async def get_pattern_analysis(
+    pattern_name: Optional[str] = Query(None, description="분석할 패턴명"),
+    symbol: Optional[str] = Query(None, description="심볼 필터"),
+    min_occurrences: int = Query(5, description="최소 발생 횟수", ge=1, le=50),
+) -> Dict[str, Any]:
+    """
+    저장된 패턴들의 성과를 분석합니다.
+
+    각 패턴이 얼마나 자주 발생하고, 성공률이 어떻게 되는지 분석하여
+    가장 효과적인 패턴을 찾을 수 있습니다.
+
+    Args:
+        pattern_name: 특정 패턴만 분석 (None이면 모든 패턴)
+        symbol: 특정 심볼로 필터링
+        min_occurrences: 분석에 포함할 최소 발생 횟수
+
+    Returns:
+        패턴 성과 분석 결과
+        - summary: 전체 패턴 요약
+        - pattern_analysis: 패턴별 상세 분석
+        - filters: 적용된 필터 조건
+    """
+    try:
+        result = pattern_analysis_service.analyze_pattern_performance(
+            pattern_name=pattern_name, symbol=symbol, min_occurrences=min_occurrences
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"패턴 분석 실패: {str(e)}")
+
+
+@router.get("/patterns/successful", summary="성공적인 패턴 조회")
+async def get_successful_patterns(
+    symbol: Optional[str] = Query(None, description="심볼 필터"),
+    success_threshold: float = Query(0.7, description="성공 임계값", ge=0.1, le=1.0),
+    min_occurrences: int = Query(3, description="최소 발생 횟수", ge=1, le=20),
+) -> Dict[str, Any]:
+    """
+    높은 성공률을 보이는 패턴들을 조회합니다.
+
+    설정한 성공률 이상의 패턴들만 필터링하여
+    실제 매매에 활용할 수 있는 고품질 패턴을 찾습니다.
+
+    Args:
+        symbol: 특정 심볼로 필터링
+        success_threshold: 성공률 기준 (0.7 = 70% 이상)
+        min_occurrences: 최소 발생 횟수
+
+    Returns:
+        성공적인 패턴 목록
+        - successful_patterns: 기준을 만족하는 패턴들
+        - criteria: 적용된 기준
+        - summary: 분석 요약
+    """
+    try:
+        result = pattern_analysis_service.find_successful_patterns(
+            symbol=symbol,
+            success_threshold=success_threshold,
+            min_occurrences=min_occurrences,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"성공적인 패턴 조회 실패: {str(e)}"
+        )
+
+
+@router.post("/patterns/test/{symbol}", summary="패턴 분석 테스트")
+async def test_pattern_analysis(
+    symbol: str = Path(..., description="테스트할 심볼"),
+) -> Dict[str, Any]:
+    """
+    패턴 분석 기능을 테스트합니다. (개발용)
+
+    가상의 패턴 데이터를 생성하여 패턴 분석 시스템이
+    정상적으로 동작하는지 확인합니다.
+
+    Args:
+        symbol: 테스트에 사용할 심볼
+
+    Returns:
+        테스트 결과
+    """
+    try:
+        result = pattern_analysis_service.test_pattern_analysis(symbol=symbol)
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"패턴 분석 테스트 실패: {str(e)}")
+
+
+@router.delete("/patterns/test/{symbol}", summary="테스트 패턴 정리")
+async def cleanup_test_patterns(
+    symbol: str = Path(..., description="정리할 심볼"),
+) -> Dict[str, Any]:
+    """
+    테스트용으로 생성된 패턴 데이터를 정리합니다. (개발용)
+
+    Args:
+        symbol: 정리할 심볼
+
+    Returns:
+        정리 결과
+    """
+    try:
+        result = pattern_analysis_service.cleanup_test_patterns(symbol=symbol)
+
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"테스트 패턴 정리 실패: {str(e)}")
