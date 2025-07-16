@@ -1,10 +1,11 @@
 # ENV_MODE=dev uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
+# ENV_MODE=test uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
 # ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8081
 from fastapi import FastAPI
 from app.common.infra.database.config.database_config import Base, engine
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
-from app.news_crawler.web.route.news_test_router import router as news_test_router 
+from app.news_crawler.web.route.news_test_router import router as news_test_router
 from app.message_notification.web.route.message_router import router as message_router
 import os
 from dotenv import load_dotenv
@@ -19,20 +20,20 @@ load_dotenv(dotenv_path=env_file)
 app = FastAPI(
     title="Finstage Market Data API",
     version="1.0.0",
-    description="주가 및 재무데이터 수집/제공 서비스"
+    description="주가 및 재무데이터 수집/제공 서비스",
 )
 
 # 라우터 등록
 app.include_router(financial_router, prefix="/api/financials", tags=["Financial"])
 app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
-app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])  
+app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])
 app.include_router(message_router, prefix="/api/messages", tags=["Messages"])
 
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
 
+
 @app.on_event("startup")
 def startup_event():
     start_scheduler()  # 서버 시작 시 스케줄러 동작 시작
-

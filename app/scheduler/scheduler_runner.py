@@ -268,18 +268,18 @@ def start_scheduler():
     # 서버 시작시 즉시 실행 (테스트용)
     # =============================================================================
 
-    print("🚀 서버 시작시 초기 분석 실행")
+    # print("🚀 서버 시작시 초기 분석 실행")
 
     # 기존 실시간 가격 모니터링 즉시 실행
     # run_realtime_price_monitor_job()
 
     # 🆕 기술적 지표 분석 즉시 실행
-    print("📊 기술적 지표 초기 분석 시작...")
-    run_all_technical_analysis()
+    # print("📊 기술적 지표 초기 분석 시작...")
+    # run_all_technical_analysis()
 
     # 🧪 알림 테스트 (개발용)
-    print("🧪 기술적 지표 알림 테스트 실행...")
+    # print("🧪 기술적 지표 알림 테스트 실행...")
     # test_technical_alerts()
 
-    print("✅ 모든 초기 분석 완료, 스케줄러 시작")
+    # print("✅ 모든 초기 분석 완료, 스케줄러 시작")
     scheduler.start()
