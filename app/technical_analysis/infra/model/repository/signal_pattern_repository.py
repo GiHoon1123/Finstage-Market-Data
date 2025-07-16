@@ -379,67 +379,63 @@ class SignalPatternRepository:
     # =================================================================
 
     def get_pattern_performance_stats(
-        self, pattern_name: str, timeframe_eval: str = "1d"
-    ) -> Dict[str, Any]:
+        self, pattern_name: Optional[str] = None, symbol: Optional[str] = None, min_occurrences: int = 5
+    ) -> List[Dict[str, Any]]:
         """
-        특정 패턴의 성과 통계
+        패턴 성과 통계 조회
 
         Args:
-            pattern_name: 패턴 이름
-            timeframe_eval: 평가 기간
+            pattern_name: 특정 패턴명 (None이면 모든 패턴)
+            symbol: 심볼 필터 (선택사항)
+            min_occurrences: 최소 발생 횟수
 
         Returns:
-            패턴 성과 통계
+            패턴 성과 통계 리스트
         """
-        outcome_column = f"pattern_outcome_{timeframe_eval}"
-        success_column = f"is_successful_{timeframe_eval}"
-
-        patterns = (
-            self.session.query(SignalPattern)
-            .filter(SignalPattern.pattern_name == pattern_name)
-            .all()
+        # 기본 쿼리 구성
+        query = self.session.query(
+            SignalPattern.pattern_name,
+            SignalPattern.symbol,
+            func.count(SignalPattern.id).label("total_count"),
+            func.avg(SignalPattern.pattern_duration_hours).label("avg_duration"),
         )
 
-        if not patterns:
-            return {
-                "pattern_name": pattern_name,
-                "total_count": 0,
-                "success_rate": 0.0,
-                "avg_return": 0.0,
-                "min_return": 0.0,
-                "max_return": 0.0,
+        # 필터 적용
+        if pattern_name:
+            query = query.filter(SignalPattern.pattern_name == pattern_name)
+        if symbol:
+            query = query.filter(SignalPattern.symbol == symbol)
+
+        # 그룹화 및 필터링
+        if pattern_name and symbol:
+            # 특정 패턴 + 특정 심볼
+            query = query.group_by(SignalPattern.pattern_name, SignalPattern.symbol)
+        elif pattern_name:
+            # 특정 패턴, 모든 심볼
+            query = query.group_by(SignalPattern.pattern_name, SignalPattern.symbol)
+        elif symbol:
+            # 특정 심볼, 모든 패턴
+            query = query.group_by(SignalPattern.pattern_name, SignalPattern.symbol)
+        else:
+            # 모든 패턴, 모든 심볼
+            query = query.group_by(SignalPattern.pattern_name, SignalPattern.symbol)
+
+        # 최소 발생 횟수 필터
+        query = query.having(func.count(SignalPattern.id) >= min_occurrences)
+
+        # 결과 조회
+        results = query.all()
+
+        # 결과 포맷팅
+        return [
+            {
+                "pattern_name": result.pattern_name,
+                "symbol": result.symbol,
+                "total_count": result.total_count,
+                "avg_duration": float(result.avg_duration) if result.avg_duration else 0.0,
             }
-
-        # 결과 데이터 수집
-        outcomes = []
-        successes = []
-
-        for pattern in patterns:
-            outcome = getattr(pattern, outcome_column)
-            success = getattr(pattern, success_column)
-
-            if outcome is not None:
-                outcomes.append(float(outcome))
-            if success is not None:
-                successes.append(success)
-
-        return {
-            "pattern_name": pattern_name,
-            "total_count": len(patterns),
-            "success_rate": sum(successes) / len(successes) if successes else 0.0,
-            "avg_return": sum(outcomes) / len(outcomes) if outcomes else 0.0,
-            "min_return": min(outcomes) if outcomes else 0.0,
-            "max_return": max(outcomes) if outcomes else 0.0,
-            "std_return": (
-                (
-                    sum([(x - sum(outcomes) / len(outcomes)) ** 2 for x in outcomes])
-                    / len(outcomes)
-                )
-                ** 0.5
-                if len(outcomes) > 1
-                else 0.0
-            ),
-        }
+            for result in results
+        ]
 
     def get_best_patterns(
         self, timeframe_eval: str = "1d", min_occurrences: int = 5, limit: int = 10

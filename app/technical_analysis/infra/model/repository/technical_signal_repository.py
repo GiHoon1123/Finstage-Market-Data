@@ -167,6 +167,7 @@ class TechnicalSignalRepository:
         end_date: datetime,
         symbol: Optional[str] = None,
         signal_type: Optional[str] = None,
+        limit: Optional[int] = None,
     ) -> List[TechnicalSignal]:
         """
         날짜 범위로 신호 조회 (백테스팅용)
@@ -193,7 +194,12 @@ class TechnicalSignalRepository:
         if signal_type:
             query = query.filter(TechnicalSignal.signal_type == signal_type)
 
-        return query.order_by(asc(TechnicalSignal.triggered_at)).all()
+        query = query.order_by(asc(TechnicalSignal.triggered_at))
+        
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
 
     def find_recent_signals(
         self, hours: int = 24, symbol: Optional[str] = None

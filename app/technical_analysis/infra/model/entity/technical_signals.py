@@ -27,6 +27,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.common.infra.database.config.database_config import Base
 
 
@@ -144,6 +145,18 @@ class TechnicalSignal(Base):
 
     updated_at = Column(
         DateTime, default=func.now(), onupdate=func.now(), comment="레코드 수정 시점"
+    )
+
+    # =================================================================
+    # 관계 설정 (ORM)
+    # =================================================================
+
+    # 신호 결과와의 관계 설정 (1:1 관계)
+    outcome = relationship(
+        "SignalOutcome",
+        back_populates="signal",
+        uselist=False,  # 1:1 관계이므로 단일 객체
+        cascade="all, delete-orphan"  # 신호 삭제시 결과도 함께 삭제
     )
 
     # =================================================================

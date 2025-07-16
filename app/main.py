@@ -7,9 +7,10 @@ from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router
 from app.message_notification.web.route.message_router import router as message_router
-from app.technical_analysis.web.route.technical_analysis_router import (
-    router as technical_analysis_router,
-)
+from app.technical_analysis.web.route.pattern_analysis_router import router as pattern_analysis_router
+from app.technical_analysis.web.route.signal_analysis_router import router as signal_analysis_router
+from app.technical_analysis.web.route.utility_router import router as utility_router
+from app.technical_analysis.web.route.advanced_pattern_router import router as advanced_pattern_router
 
 
 import os
@@ -34,10 +35,25 @@ app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
 app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])
 app.include_router(message_router, prefix="/api/messages", tags=["Messages"])
 app.include_router(
-    technical_analysis_router,
-    prefix="/api/technical-analysis",
-    tags=["Technical Analysis"],
-)  # 🆕 기술적 분석 API
+    pattern_analysis_router,
+    prefix="/api/technical-analysis/patterns",
+    tags=["Pattern Analysis"],
+)
+app.include_router(
+    signal_analysis_router,
+    prefix="/api/technical-analysis/signals",
+    tags=["Signal Analysis"],
+)
+app.include_router(
+    utility_router,
+    prefix="/api/technical-analysis/utils",
+    tags=["Technical Analysis Utils"],
+)
+app.include_router(
+    advanced_pattern_router,
+    prefix="/api/technical-analysis/advanced",
+    tags=["Advanced Pattern Analysis"],
+)
 
 
 # DB 테이블 생성

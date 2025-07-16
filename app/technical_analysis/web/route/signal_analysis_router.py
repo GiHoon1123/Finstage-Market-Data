@@ -1,20 +1,7 @@
 """
-기술적 분석 API 라우터
+신호 분석 API 라우터
 
-이 파일은 기술적 분석 관련 API 엔드포인트를 제공합니다.
-저장된 기술적 신호 데이터를 조회하고 통계를 제공하는 REST API입니다.
-
-주요 기능:
-1. 신호 조회 - 저장된 기술적 신호들을 다양한 조건으로 조회
-2. 통계 조회 - 신호 발생 빈도, 성공률 등 통계 데이터
-3. 현재 상태 - 실시간 기술적 지표 상태 조회
-4. 백테스팅 - 과거 신호들의 성과 분석 (Phase 2에서 구현 예정)
-
-API 사용 예시:
-- GET /api/technical-analysis/signals - 최근 신호들 조회
-- GET /api/technical-analysis/signals/NQ=F - 특정 심볼의 신호들
-- GET /api/technical-analysis/stats/signal-count - 신호 발생 통계
-- GET /api/technical-analysis/current-status/NQ=F/1min - 현재 기술적 지표 상태
+신호 조회, 통계, 현재 상태, 백테스팅, 성과 분석, 결과 추적 등의 기능을 제공합니다.
 """
 
 from fastapi import APIRouter, HTTPException, Query, Path
@@ -28,8 +15,14 @@ from app.technical_analysis.service.backtesting_service import BacktestingServic
 from app.technical_analysis.service.outcome_tracking_service import (
     OutcomeTrackingService,
 )
-from app.technical_analysis.service.pattern_analysis_service import (
-    PatternAnalysisService,
+from app.technical_analysis.service.advanced_pattern_service import (
+    AdvancedPatternService,
+)
+from app.technical_analysis.service.portfolio_backtesting_service import (
+    PortfolioBacktestingService,
+)
+from app.technical_analysis.service.signal_filtering_service import (
+    SignalFilteringService,
 )
 from app.technical_analysis.infra.model.repository.technical_signal_repository import (
     TechnicalSignalRepository,
@@ -44,7 +37,9 @@ signal_storage_service = SignalStorageService()
 technical_monitor_service = TechnicalMonitorService()
 backtesting_service = BacktestingService()
 outcome_tracking_service = OutcomeTrackingService()
-pattern_analysis_service = PatternAnalysisService()
+advanced_pattern_service = AdvancedPatternService()
+portfolio_backtesting_service = PortfolioBacktestingService()
+signal_filtering_service = SignalFilteringService()
 
 
 # =============================================================================
@@ -409,87 +404,7 @@ async def get_current_technical_status(
 
 
 # =============================================================================
-# 유틸리티 API
-# =============================================================================
-
-
-@router.get("/health", summary="서비스 상태 확인")
-async def health_check() -> Dict[str, Any]:
-    """
-    기술적 분석 서비스의 상태를 확인합니다.
-
-    Returns:
-        서비스 상태 정보
-    """
-    try:
-        # 간단한 DB 연결 테스트
-        session = SessionLocal()
-        repository = TechnicalSignalRepository(session)
-
-        # 최근 1시간 내 신호 개수 조회 (DB 연결 테스트)
-        recent_signals = repository.find_recent_signals(hours=1)
-        signal_count = len(recent_signals)
-
-        session.close()
-
-        return {
-            "status": "healthy",
-            "service": "technical_analysis",
-            "timestamp": datetime.utcnow().isoformat(),
-            "database": "connected",
-            "recent_signals_1h": signal_count,
-            "version": "1.0.0",
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"서비스 상태 불량: {str(e)}")
-
-
-@router.get("/signal-types", summary="지원하는 신호 타입 목록")
-async def get_supported_signal_types() -> Dict[str, Any]:
-    """
-    현재 지원하는 모든 신호 타입의 목록과 설명을 제공합니다.
-
-    Returns:
-        신호 타입 목록과 설명
-    """
-    signal_types = {
-        "moving_average": {
-            "MA20_breakout_up": "20일선 상향 돌파",
-            "MA20_breakout_down": "20일선 하향 이탈",
-            "MA50_breakout_up": "50일선 상향 돌파",
-            "MA50_breakout_down": "50일선 하향 이탈",
-            "MA200_breakout_up": "200일선 상향 돌파",
-            "MA200_breakout_down": "200일선 하향 이탈",
-        },
-        "rsi": {
-            "RSI_overbought": "RSI 과매수 (70 이상)",
-            "RSI_oversold": "RSI 과매도 (30 이하)",
-            "RSI_bullish": "RSI 상승 모멘텀 (50 돌파)",
-            "RSI_bearish": "RSI 하락 모멘텀 (50 이탈)",
-        },
-        "bollinger_bands": {
-            "BB_touch_upper": "볼린저 밴드 상단 터치",
-            "BB_touch_lower": "볼린저 밴드 하단 터치",
-            "BB_break_upper": "볼린저 밴드 상단 돌파",
-            "BB_break_lower": "볼린저 밴드 하단 이탈",
-        },
-        "cross_signals": {
-            "golden_cross": "골든크로스 (50일선이 200일선 상향돌파)",
-            "dead_cross": "데드크로스 (50일선이 200일선 하향이탈)",
-        },
-    }
-
-    return {
-        "signal_types": signal_types,
-        "total_types": sum(len(category) for category in signal_types.values()),
-        "categories": list(signal_types.keys()),
-        "description": "기술적 분석에서 지원하는 모든 신호 타입들입니다.",
-    }
-
-
-# =============================================================================
-# Phase 2: 백테스팅 및 성과 분석 API
+# 백테스팅 및 성과 분석 API
 # =============================================================================
 
 
@@ -670,7 +585,7 @@ async def evaluate_signal_quality(
 
 
 # =============================================================================
-# Phase 2: 결과 추적 API
+# 결과 추적 API
 # =============================================================================
 
 
@@ -802,184 +717,3 @@ async def test_outcome_tracking(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"결과 추적 테스트 실패: {str(e)}")
-
-
-# =============================================================================
-# Phase 3: 패턴 분석 API
-# =============================================================================
-
-
-@router.post("/patterns/discover/{symbol}", summary="패턴 자동 발견")
-async def discover_patterns(
-    symbol: str = Path(..., description="분석할 심볼 (예: NQ=F)"),
-    timeframe: str = Query("15min", description="시간대 (1min, 15min, 1day)"),
-) -> Dict[str, Any]:
-    """
-    특정 심볼에서 반복되는 신호 패턴을 자동으로 발견합니다.
-
-    여러 기술적 신호들이 특정 순서로 발생하는 패턴을 찾아내어
-    더 정확한 매매 신호를 만들 수 있습니다.
-
-    Args:
-        symbol: 패턴을 찾을 심볼
-        timeframe: 분석할 시간대
-
-    Returns:
-        발견된 패턴 정보
-        - discovered_patterns: 발견된 패턴 후보 개수
-        - saved_patterns: 실제 저장된 패턴 개수
-        - patterns: 저장된 패턴들의 상세 정보
-    """
-    try:
-        result = pattern_analysis_service.discover_patterns(
-            symbol=symbol, timeframe=timeframe
-        )
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"패턴 발견 실패: {str(e)}")
-
-
-@router.get("/patterns/analysis", summary="패턴 성과 분석")
-async def get_pattern_analysis(
-    pattern_name: Optional[str] = Query(None, description="분석할 패턴명"),
-    symbol: Optional[str] = Query(None, description="심볼 필터"),
-    min_occurrences: int = Query(5, description="최소 발생 횟수", ge=1, le=50),
-) -> Dict[str, Any]:
-    """
-    저장된 패턴들의 성과를 분석합니다.
-
-    각 패턴이 얼마나 자주 발생하고, 성공률이 어떻게 되는지 분석하여
-    가장 효과적인 패턴을 찾을 수 있습니다.
-
-    Args:
-        pattern_name: 특정 패턴만 분석 (None이면 모든 패턴)
-        symbol: 특정 심볼로 필터링
-        min_occurrences: 분석에 포함할 최소 발생 횟수
-
-    Returns:
-        패턴 성과 분석 결과
-        - summary: 전체 패턴 요약
-        - pattern_analysis: 패턴별 상세 분석
-        - filters: 적용된 필터 조건
-    """
-    try:
-        result = pattern_analysis_service.analyze_pattern_performance(
-            pattern_name=pattern_name, symbol=symbol, min_occurrences=min_occurrences
-        )
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"패턴 분석 실패: {str(e)}")
-
-
-@router.get("/patterns/successful", summary="성공적인 패턴 조회")
-async def get_successful_patterns(
-    symbol: Optional[str] = Query(None, description="심볼 필터"),
-    success_threshold: float = Query(0.7, description="성공 임계값", ge=0.1, le=1.0),
-    min_occurrences: int = Query(3, description="최소 발생 횟수", ge=1, le=20),
-) -> Dict[str, Any]:
-    """
-    높은 성공률을 보이는 패턴들을 조회합니다.
-
-    설정한 성공률 이상의 패턴들만 필터링하여
-    실제 매매에 활용할 수 있는 고품질 패턴을 찾습니다.
-
-    Args:
-        symbol: 특정 심볼로 필터링
-        success_threshold: 성공률 기준 (0.7 = 70% 이상)
-        min_occurrences: 최소 발생 횟수
-
-    Returns:
-        성공적인 패턴 목록
-        - successful_patterns: 기준을 만족하는 패턴들
-        - criteria: 적용된 기준
-        - summary: 분석 요약
-    """
-    try:
-        result = pattern_analysis_service.find_successful_patterns(
-            symbol=symbol,
-            success_threshold=success_threshold,
-            min_occurrences=min_occurrences,
-        )
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"성공적인 패턴 조회 실패: {str(e)}"
-        )
-
-
-@router.post("/patterns/test/{symbol}", summary="패턴 분석 테스트")
-async def test_pattern_analysis(
-    symbol: str = Path(..., description="테스트할 심볼"),
-) -> Dict[str, Any]:
-    """
-    패턴 분석 기능을 테스트합니다. (개발용)
-
-    가상의 패턴 데이터를 생성하여 패턴 분석 시스템이
-    정상적으로 동작하는지 확인합니다.
-
-    Args:
-        symbol: 테스트에 사용할 심볼
-
-    Returns:
-        테스트 결과
-    """
-    try:
-        result = pattern_analysis_service.test_pattern_analysis(symbol=symbol)
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"패턴 분석 테스트 실패: {str(e)}")
-
-
-@router.delete("/patterns/test/{symbol}", summary="테스트 패턴 정리")
-async def cleanup_test_patterns(
-    symbol: str = Path(..., description="정리할 심볼"),
-) -> Dict[str, Any]:
-    """
-    테스트용으로 생성된 패턴 데이터를 정리합니다. (개발용)
-
-    Args:
-        symbol: 정리할 심볼
-
-    Returns:
-        정리 결과
-    """
-    try:
-        result = pattern_analysis_service.cleanup_test_patterns(symbol=symbol)
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"테스트 패턴 정리 실패: {str(e)}")
