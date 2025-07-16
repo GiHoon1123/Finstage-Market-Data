@@ -7,6 +7,11 @@ from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router
 from app.message_notification.web.route.message_router import router as message_router
+from app.technical_analysis.web.route.technical_analysis_router import (
+    router as technical_analysis_router,
+)
+
+
 import os
 from dotenv import load_dotenv
 from app.scheduler.scheduler_runner import start_scheduler
@@ -28,6 +33,11 @@ app.include_router(financial_router, prefix="/api/financials", tags=["Financial"
 app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
 app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])
 app.include_router(message_router, prefix="/api/messages", tags=["Messages"])
+app.include_router(
+    technical_analysis_router,
+    prefix="/api/technical-analysis",
+    tags=["Technical Analysis"],
+)  # 🆕 기술적 분석 API
 
 
 # DB 테이블 생성

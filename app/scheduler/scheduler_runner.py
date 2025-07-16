@@ -4,7 +4,9 @@ from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 from app.market_price.service.price_high_record_service import PriceHighRecordService
 from app.market_price.service.price_snapshot_service import PriceSnapshotService
 from app.market_price.service.price_monitor_service import PriceMonitorService
-from app.market_price.service.technical_monitor_service import TechnicalMonitorService
+from app.technical_analysis.service.technical_monitor_service import (
+    TechnicalMonitorService,
+)
 from app.common.constants.symbol_names import (
     INDEX_SYMBOLS,
     FUTURES_SYMBOLS,
@@ -279,7 +281,7 @@ def start_scheduler():
 
     # 🧪 알림 테스트 (개발용)
     # print("🧪 기술적 지표 알림 테스트 실행...")
-    # test_technical_alerts()
+    test_technical_alerts()
 
     # print("✅ 모든 초기 분석 완료, 스케줄러 시작")
     scheduler.start()

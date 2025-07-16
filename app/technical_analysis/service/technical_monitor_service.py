@@ -9,10 +9,12 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any
+import pandas as pd
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
-from app.market_price.service.technical_indicator_service import (
+from app.technical_analysis.service.technical_indicator_service import (
     TechnicalIndicatorService,
 )
+from app.technical_analysis.service.signal_storage_service import SignalStorageService
 from app.market_price.service.price_alert_log_service import PriceAlertLogService
 from app.common.constants.technical_settings import (
     TECHNICAL_SYMBOLS,
@@ -36,6 +38,7 @@ class TechnicalMonitorService:
         self.yahoo_client = YahooPriceClient()
         self.indicator_service = TechnicalIndicatorService()
         self.alert_log_service = PriceAlertLogService()
+        self.signal_storage_service = SignalStorageService()
 
     # =========================================================================
     # 나스닥 선물 모니터링 (단기 - 1분봉, 15분봉)
@@ -236,7 +239,27 @@ class TechnicalMonitorService:
                     if not self.alert_log_service.exists_recent_alert(
                         symbol, alert_type, f"MA{period}", interval
                     ):
-                        # 텔레그램 알림 전송
+                        # 🆕 1. 기술적 신호를 데이터베이스에 저장
+                        saved_signal = (
+                            self.signal_storage_service.save_ma_breakout_signal(
+                                symbol=symbol,
+                                timeframe=timeframe,
+                                ma_period=period,
+                                breakout_direction=breakout_signal.replace(
+                                    "breakout_", ""
+                                ),  # "up" or "down"
+                                current_price=current_price,
+                                ma_value=current_ma,
+                                volume=(
+                                    int(df["volume"].iloc[-1])
+                                    if "volume" in df.columns
+                                    and not pd.isna(df["volume"].iloc[-1])
+                                    else None
+                                ),
+                            )
+                        )
+
+                        # 2. 텔레그램 알림 전송
                         send_ma_breakout_message(
                             symbol=symbol,
                             timeframe=timeframe,
@@ -247,7 +270,11 @@ class TechnicalMonitorService:
                             now=now,
                         )
 
-                        # 알림 로그 저장
+                        # 🆕 3. 알림 발송 상태 업데이트 (신호가 저장된 경우에만)
+                        if saved_signal:
+                            self.signal_storage_service.mark_alert_sent(saved_signal.id)
+
+                        # 4. 기존 알림 로그 저장 (호환성 유지)
                         self.alert_log_service.save_alert(
                             symbol=symbol,
                             alert_type=alert_type,
@@ -264,6 +291,8 @@ class TechnicalMonitorService:
                         print(
                             f"📨 {symbol} MA{period} {breakout_signal} 알림 전송 완료"
                         )
+                        if saved_signal:
+                            print(f"💾 신호 DB 저장 완료 (ID: {saved_signal.id})")
 
         except Exception as e:
             print(f"❌ 이동평균선 분석 실패: {e}")
@@ -292,7 +321,22 @@ class TechnicalMonitorService:
                 if not self.alert_log_service.exists_recent_alert(
                     symbol, alert_type, "RSI", interval
                 ):
-                    # 텔레그램 알림 전송
+                    # 🆕 1. RSI 신호를 데이터베이스에 저장
+                    saved_signal = self.signal_storage_service.save_rsi_signal(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        rsi_value=current_rsi,
+                        current_price=df["close"].iloc[-1],
+                        signal_type_suffix=rsi_signal,
+                        volume=(
+                            int(df["volume"].iloc[-1])
+                            if "volume" in df.columns
+                            and not pd.isna(df["volume"].iloc[-1])
+                            else None
+                        ),
+                    )
+
+                    # 2. 텔레그램 알림 전송
                     send_rsi_alert_message(
                         symbol=symbol,
                         timeframe=timeframe,
@@ -301,7 +345,11 @@ class TechnicalMonitorService:
                         now=now,
                     )
 
-                    # 알림 로그 저장
+                    # 🆕 3. 알림 발송 상태 업데이트
+                    if saved_signal:
+                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
+
+                    # 4. 기존 알림 로그 저장 (호환성 유지)
                     self.alert_log_service.save_alert(
                         symbol=symbol,
                         alert_type=alert_type,
@@ -315,6 +363,8 @@ class TechnicalMonitorService:
                     )
 
                     print(f"📨 {symbol} RSI {rsi_signal} 알림 전송 완료")
+                    if saved_signal:
+                        print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal.id})")
 
         except Exception as e:
             print(f"❌ RSI 분석 실패: {e}")
@@ -353,7 +403,25 @@ class TechnicalMonitorService:
                 if not self.alert_log_service.exists_recent_alert(
                     symbol, alert_type, "BOLLINGER", interval
                 ):
-                    # 텔레그램 알림 전송
+                    # 🆕 1. 볼린저 밴드 신호를 데이터베이스에 저장
+                    band_value = (
+                        current_upper if "upper" in bollinger_signal else current_lower
+                    )
+                    saved_signal = self.signal_storage_service.save_bollinger_signal(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        current_price=current_price,
+                        band_value=band_value,
+                        signal_type_suffix=bollinger_signal,
+                        volume=(
+                            int(df["volume"].iloc[-1])
+                            if "volume" in df.columns
+                            and not pd.isna(df["volume"].iloc[-1])
+                            else None
+                        ),
+                    )
+
+                    # 2. 텔레그램 알림 전송
                     send_bollinger_alert_message(
                         symbol=symbol,
                         timeframe=timeframe,
@@ -364,16 +432,16 @@ class TechnicalMonitorService:
                         now=now,
                     )
 
-                    # 알림 로그 저장
+                    # 🆕 3. 알림 발송 상태 업데이트
+                    if saved_signal:
+                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
+
+                    # 4. 기존 알림 로그 저장 (호환성 유지)
                     self.alert_log_service.save_alert(
                         symbol=symbol,
                         alert_type=alert_type,
                         base_type="BOLLINGER",
-                        base_price=(
-                            current_upper
-                            if "upper" in bollinger_signal
-                            else current_lower
-                        ),
+                        base_price=band_value,
                         current_price=current_price,
                         threshold_percent=0.0,
                         actual_percent=0.0,
@@ -382,6 +450,10 @@ class TechnicalMonitorService:
                     )
 
                     print(f"📨 {symbol} 볼린저 밴드 {bollinger_signal} 알림 전송 완료")
+                    if saved_signal:
+                        print(
+                            f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal.id})"
+                        )
 
         except Exception as e:
             print(f"❌ 볼린저 밴드 분석 실패: {e}")
@@ -409,8 +481,24 @@ class TechnicalMonitorService:
                 ):
                     current_50 = ma_50.iloc[-1]
                     current_200 = ma_200.iloc[-1]
+                    current_price = df["close"].iloc[-1]
 
-                    # 텔레그램 알림 전송
+                    # 🆕 1. 크로스 신호를 데이터베이스에 저장
+                    saved_signal = self.signal_storage_service.save_cross_signal(
+                        symbol=symbol,
+                        cross_type=cross_signal,
+                        ma_short_value=current_50,
+                        ma_long_value=current_200,
+                        current_price=current_price,
+                        volume=(
+                            int(df["volume"].iloc[-1])
+                            if "volume" in df.columns
+                            and not pd.isna(df["volume"].iloc[-1])
+                            else None
+                        ),
+                    )
+
+                    # 2. 텔레그램 알림 전송
                     if cross_signal == "golden_cross":
                         send_golden_cross_message(
                             symbol=symbol, ma_50=current_50, ma_200=current_200, now=now
@@ -420,13 +508,17 @@ class TechnicalMonitorService:
                             symbol=symbol, ma_50=current_50, ma_200=current_200, now=now
                         )
 
-                    # 알림 로그 저장
+                    # 🆕 3. 알림 발송 상태 업데이트
+                    if saved_signal:
+                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
+
+                    # 4. 기존 알림 로그 저장 (호환성 유지)
                     self.alert_log_service.save_alert(
                         symbol=symbol,
                         alert_type=alert_type,
                         base_type="CROSS",
                         base_price=current_200,
-                        current_price=df["close"].iloc[-1],
+                        current_price=current_price,
                         threshold_percent=0.0,
                         actual_percent=((current_50 - current_200) / current_200) * 100,
                         base_time=now,
@@ -434,6 +526,8 @@ class TechnicalMonitorService:
                     )
 
                     print(f"📨 {symbol} {cross_signal} 알림 전송 완료")
+                    if saved_signal:
+                        print(f"💾 크로스 신호 DB 저장 완료 (ID: {saved_signal.id})")
 
         except Exception as e:
             print(f"❌ 크로스 신호 분석 실패: {e}")
@@ -534,6 +628,19 @@ class TechnicalMonitorService:
         try:
             # 1. 이동평균선 돌파 테스트 (상향)
             print("📈 1. 이동평균선 상향 돌파 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_1 = self.signal_storage_service.save_ma_breakout_signal(
+                symbol="NQ=F",
+                timeframe="1min",
+                ma_period=20,
+                breakout_direction="up",
+                current_price=23050.75,
+                ma_value=23000.25,
+                volume=50000,
+            )
+
+            # 텔레그램 알림 전송
             send_ma_breakout_message(
                 symbol="NQ=F",
                 timeframe="1min",
@@ -544,8 +651,26 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_1:
+                self.signal_storage_service.mark_alert_sent(saved_signal_1.id)
+                print(f"💾 신호 DB 저장 완료 (ID: {saved_signal_1.id})")
+
             # 2. 이동평균선 돌파 테스트 (하향)
             print("📉 2. 이동평균선 하향 이탈 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_2 = self.signal_storage_service.save_ma_breakout_signal(
+                symbol="NQ=F",
+                timeframe="15min",
+                ma_period=50,
+                breakout_direction="down",
+                current_price=22950.25,
+                ma_value=23000.75,
+                volume=75000,
+            )
+
+            # 텔레그램 알림 전송
             send_ma_breakout_message(
                 symbol="NQ=F",
                 timeframe="15min",
@@ -556,8 +681,25 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_2:
+                self.signal_storage_service.mark_alert_sent(saved_signal_2.id)
+                print(f"💾 신호 DB 저장 완료 (ID: {saved_signal_2.id})")
+
             # 3. RSI 과매수 테스트
             print("🔴 3. RSI 과매수 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_3 = self.signal_storage_service.save_rsi_signal(
+                symbol="NQ=F",
+                timeframe="15min",
+                rsi_value=75.8,
+                current_price=23050.75,
+                signal_type_suffix="overbought",
+                volume=60000,
+            )
+
+            # 텔레그램 알림 전송
             send_rsi_alert_message(
                 symbol="NQ=F",
                 timeframe="15min",
@@ -566,8 +708,25 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_3:
+                self.signal_storage_service.mark_alert_sent(saved_signal_3.id)
+                print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal_3.id})")
+
             # 4. RSI 과매도 테스트
             print("🟢 4. RSI 과매도 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_4 = self.signal_storage_service.save_rsi_signal(
+                symbol="NQ=F",
+                timeframe="1min",
+                rsi_value=28.3,
+                current_price=22980.50,
+                signal_type_suffix="oversold",
+                volume=80000,
+            )
+
+            # 텔레그램 알림 전송
             send_rsi_alert_message(
                 symbol="NQ=F",
                 timeframe="1min",
@@ -576,8 +735,25 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_4:
+                self.signal_storage_service.mark_alert_sent(saved_signal_4.id)
+                print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal_4.id})")
+
             # 5. 볼린저 밴드 상단 터치 테스트
             print("🔴 5. 볼린저 밴드 상단 터치 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_5 = self.signal_storage_service.save_bollinger_signal(
+                symbol="NQ=F",
+                timeframe="15min",
+                current_price=23120.50,
+                band_value=23125.00,
+                signal_type_suffix="touch_upper",
+                volume=65000,
+            )
+
+            # 텔레그램 알림 전송
             send_bollinger_alert_message(
                 symbol="NQ=F",
                 timeframe="15min",
@@ -588,8 +764,25 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_5:
+                self.signal_storage_service.mark_alert_sent(saved_signal_5.id)
+                print(f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_5.id})")
+
             # 6. 볼린저 밴드 하단 터치 테스트
             print("🟢 6. 볼린저 밴드 하단 터치 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_6 = self.signal_storage_service.save_bollinger_signal(
+                symbol="NQ=F",
+                timeframe="1min",
+                current_price=22985.25,
+                band_value=22980.00,
+                signal_type_suffix="touch_lower",
+                volume=70000,
+            )
+
+            # 텔레그램 알림 전송
             send_bollinger_alert_message(
                 symbol="NQ=F",
                 timeframe="1min",
@@ -600,20 +793,71 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_6:
+                self.signal_storage_service.mark_alert_sent(saved_signal_6.id)
+                print(f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_6.id})")
+
             # 7. 골든크로스 테스트
             print("🚀 7. 골든크로스 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_7 = self.signal_storage_service.save_cross_signal(
+                symbol="^IXIC",
+                cross_type="golden_cross",
+                ma_short_value=18520.75,
+                ma_long_value=18480.25,
+                current_price=18500.00,
+                volume=1000000,
+            )
+
+            # 텔레그램 알림 전송
             send_golden_cross_message(
                 symbol="^IXIC", ma_50=18520.75, ma_200=18480.25, now=now
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_7:
+                self.signal_storage_service.mark_alert_sent(saved_signal_7.id)
+                print(f"💾 골든크로스 신호 DB 저장 완료 (ID: {saved_signal_7.id})")
+
             # 8. 데드크로스 테스트
             print("💀 8. 데드크로스 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_8 = self.signal_storage_service.save_cross_signal(
+                symbol="^IXIC",
+                cross_type="dead_cross",
+                ma_short_value=18350.25,
+                ma_long_value=18420.75,
+                current_price=18380.00,
+                volume=1200000,
+            )
+
+            # 텔레그램 알림 전송
             send_dead_cross_message(
                 symbol="^IXIC", ma_50=18350.25, ma_200=18420.75, now=now
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_8:
+                self.signal_storage_service.mark_alert_sent(saved_signal_8.id)
+                print(f"💾 데드크로스 신호 DB 저장 완료 (ID: {saved_signal_8.id})")
+
             # 9. RSI 상승 모멘텀 테스트
             print("📈 9. RSI 상승 모멘텀 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_9 = self.signal_storage_service.save_rsi_signal(
+                symbol="^IXIC",
+                timeframe="1day",
+                rsi_value=55.2,
+                current_price=18500.00,
+                signal_type_suffix="bullish",
+                volume=800000,
+            )
+
+            # 텔레그램 알림 전송
             send_rsi_alert_message(
                 symbol="^IXIC",
                 timeframe="1day",
@@ -622,8 +866,25 @@ class TechnicalMonitorService:
                 now=now,
             )
 
+            # 알림 발송 상태 업데이트
+            if saved_signal_9:
+                self.signal_storage_service.mark_alert_sent(saved_signal_9.id)
+                print(f"💾 RSI 상승 모멘텀 신호 DB 저장 완료 (ID: {saved_signal_9.id})")
+
             # 10. 볼린저 밴드 상단 돌파 테스트
             print("🚀 10. 볼린저 밴드 상단 돌파 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_10 = self.signal_storage_service.save_bollinger_signal(
+                symbol="NQ=F",
+                timeframe="15min",
+                current_price=23150.75,
+                band_value=23125.00,
+                signal_type_suffix="break_upper",
+                volume=90000,
+            )
+
+            # 텔레그램 알림 전송
             send_bollinger_alert_message(
                 symbol="NQ=F",
                 timeframe="15min",
@@ -633,6 +894,13 @@ class TechnicalMonitorService:
                 signal_type="break_upper",
                 now=now,
             )
+
+            # 알림 발송 상태 업데이트
+            if saved_signal_10:
+                self.signal_storage_service.mark_alert_sent(saved_signal_10.id)
+                print(
+                    f"💾 볼린저 밴드 상단 돌파 신호 DB 저장 완료 (ID: {saved_signal_10.id})"
+                )
 
             print("✅ 모든 기술적 지표 알림 테스트 완료!")
             print("📱 텔레그램에서 10개의 테스트 알림을 확인해보세요.")
