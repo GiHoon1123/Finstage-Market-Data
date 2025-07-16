@@ -514,3 +514,200 @@ class TechnicalMonitorService:
         except Exception as e:
             print(f"❌ 기술적 지표 상태 조회 실패: {e}")
             return {"error": str(e)}
+
+    # =========================================================================
+    # 테스트 함수들
+    # =========================================================================
+
+    def test_all_technical_alerts(self):
+        """
+        모든 기술적 지표 알림 테스트
+
+        실제 돌파가 없어도 가짜 데이터로 모든 알림 타입을 테스트해볼 수 있습니다.
+        장이 닫힌 시간이나 개발 중에 알림이 제대로 가는지 확인용으로 사용하세요.
+        """
+        from datetime import datetime
+
+        print("🧪 기술적 지표 알림 테스트 시작")
+        now = datetime.utcnow()
+
+        try:
+            # 1. 이동평균선 돌파 테스트 (상향)
+            print("📈 1. 이동평균선 상향 돌파 테스트")
+            send_ma_breakout_message(
+                symbol="NQ=F",
+                timeframe="1min",
+                ma_period=20,
+                current_price=23050.75,
+                ma_value=23000.25,
+                signal_type="breakout_up",
+                now=now,
+            )
+
+            # 2. 이동평균선 돌파 테스트 (하향)
+            print("📉 2. 이동평균선 하향 이탈 테스트")
+            send_ma_breakout_message(
+                symbol="NQ=F",
+                timeframe="15min",
+                ma_period=50,
+                current_price=22950.25,
+                ma_value=23000.75,
+                signal_type="breakout_down",
+                now=now,
+            )
+
+            # 3. RSI 과매수 테스트
+            print("🔴 3. RSI 과매수 테스트")
+            send_rsi_alert_message(
+                symbol="NQ=F",
+                timeframe="15min",
+                current_rsi=75.8,
+                signal_type="overbought",
+                now=now,
+            )
+
+            # 4. RSI 과매도 테스트
+            print("🟢 4. RSI 과매도 테스트")
+            send_rsi_alert_message(
+                symbol="NQ=F",
+                timeframe="1min",
+                current_rsi=28.3,
+                signal_type="oversold",
+                now=now,
+            )
+
+            # 5. 볼린저 밴드 상단 터치 테스트
+            print("🔴 5. 볼린저 밴드 상단 터치 테스트")
+            send_bollinger_alert_message(
+                symbol="NQ=F",
+                timeframe="15min",
+                current_price=23120.50,
+                upper_band=23125.00,
+                lower_band=22980.00,
+                signal_type="touch_upper",
+                now=now,
+            )
+
+            # 6. 볼린저 밴드 하단 터치 테스트
+            print("🟢 6. 볼린저 밴드 하단 터치 테스트")
+            send_bollinger_alert_message(
+                symbol="NQ=F",
+                timeframe="1min",
+                current_price=22985.25,
+                upper_band=23120.00,
+                lower_band=22980.00,
+                signal_type="touch_lower",
+                now=now,
+            )
+
+            # 7. 골든크로스 테스트
+            print("🚀 7. 골든크로스 테스트")
+            send_golden_cross_message(
+                symbol="^IXIC", ma_50=18520.75, ma_200=18480.25, now=now
+            )
+
+            # 8. 데드크로스 테스트
+            print("💀 8. 데드크로스 테스트")
+            send_dead_cross_message(
+                symbol="^IXIC", ma_50=18350.25, ma_200=18420.75, now=now
+            )
+
+            # 9. RSI 상승 모멘텀 테스트
+            print("📈 9. RSI 상승 모멘텀 테스트")
+            send_rsi_alert_message(
+                symbol="^IXIC",
+                timeframe="1day",
+                current_rsi=55.2,
+                signal_type="bullish",
+                now=now,
+            )
+
+            # 10. 볼린저 밴드 상단 돌파 테스트
+            print("🚀 10. 볼린저 밴드 상단 돌파 테스트")
+            send_bollinger_alert_message(
+                symbol="NQ=F",
+                timeframe="15min",
+                current_price=23150.75,
+                upper_band=23125.00,
+                lower_band=22980.00,
+                signal_type="break_upper",
+                now=now,
+            )
+
+            print("✅ 모든 기술적 지표 알림 테스트 완료!")
+            print("📱 텔레그램에서 10개의 테스트 알림을 확인해보세요.")
+
+        except Exception as e:
+            print(f"❌ 알림 테스트 실패: {e}")
+
+    def test_single_alert(self, alert_type: str = "ma_breakout"):
+        """
+        단일 알림 테스트
+
+        Args:
+            alert_type: 테스트할 알림 타입
+            - "ma_breakout": 이동평균선 돌파
+            - "rsi": RSI 신호
+            - "bollinger": 볼린저 밴드
+            - "golden_cross": 골든크로스
+            - "dead_cross": 데드크로스
+        """
+        from datetime import datetime
+
+        now = datetime.utcnow()
+
+        try:
+            if alert_type == "ma_breakout":
+                print("📈 이동평균선 돌파 테스트")
+                send_ma_breakout_message(
+                    symbol="NQ=F",
+                    timeframe="1min",
+                    ma_period=200,
+                    current_price=23080.50,
+                    ma_value=23050.25,
+                    signal_type="breakout_up",
+                    now=now,
+                )
+
+            elif alert_type == "rsi":
+                print("🔴 RSI 과매수 테스트")
+                send_rsi_alert_message(
+                    symbol="NQ=F",
+                    timeframe="15min",
+                    current_rsi=72.5,
+                    signal_type="overbought",
+                    now=now,
+                )
+
+            elif alert_type == "bollinger":
+                print("🟢 볼린저 밴드 하단 터치 테스트")
+                send_bollinger_alert_message(
+                    symbol="NQ=F",
+                    timeframe="1min",
+                    current_price=22975.25,
+                    upper_band=23120.00,
+                    lower_band=22970.00,
+                    signal_type="touch_lower",
+                    now=now,
+                )
+
+            elif alert_type == "golden_cross":
+                print("🚀 골든크로스 테스트")
+                send_golden_cross_message(
+                    symbol="^IXIC", ma_50=18550.75, ma_200=18520.25, now=now
+                )
+
+            elif alert_type == "dead_cross":
+                print("💀 데드크로스 테스트")
+                send_dead_cross_message(
+                    symbol="^IXIC", ma_50=18380.25, ma_200=18450.75, now=now
+                )
+
+            else:
+                print(f"❌ 알 수 없는 알림 타입: {alert_type}")
+                return
+
+            print(f"✅ {alert_type} 테스트 완료!")
+
+        except Exception as e:
+            print(f"❌ {alert_type} 테스트 실패: {e}")

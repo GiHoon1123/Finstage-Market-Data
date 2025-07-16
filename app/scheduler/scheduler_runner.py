@@ -180,6 +180,46 @@ def run_all_technical_analysis():
         print(f"❌ 전체 기술적 지표 분석 실패: {e}")
 
 
+def test_technical_alerts():
+    """
+    기술적 지표 알림 테스트 (장이 닫힌 시간에도 테스트 가능)
+    - 가짜 데이터로 모든 알림 타입 테스트
+    - 텔레그램 알림이 제대로 가는지 확인용
+    """
+    print("🧪 기술적 지표 알림 테스트 시작")
+    try:
+        service = TechnicalMonitorService()
+        service.test_all_technical_alerts()
+        print("✅ 기술적 지표 알림 테스트 완료")
+    except Exception as e:
+        print(f"❌ 기술적 지표 알림 테스트 실패: {e}")
+
+
+"""
+test_single_technical_alert("ma_breakout")    # 이동평균선 돌파
+test_single_technical_alert("rsi")            # RSI 신호
+test_single_technical_alert("bollinger")      # 볼린저 밴드
+test_single_technical_alert("golden_cross")   # 골든크로스
+test_single_technical_alert("dead_cross")     # 데드크로스
+"""
+
+
+def test_single_technical_alert(alert_type: str = "ma_breakout"):
+    """
+    단일 기술적 지표 알림 테스트
+
+    Args:
+        alert_type: 테스트할 알림 타입
+    """
+    print(f"🧪 {alert_type} 알림 테스트 시작")
+    try:
+        service = TechnicalMonitorService()
+        service.test_single_alert(alert_type)
+        print(f"✅ {alert_type} 알림 테스트 완료")
+    except Exception as e:
+        print(f"❌ {alert_type} 알림 테스트 실패: {e}")
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
 
@@ -203,7 +243,7 @@ def start_scheduler():
     # =============================================================================
 
     # 실시간 가격 모니터링 (기존)
-    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
+    # scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
 
     # =============================================================================
     # 🆕 기술적 지표 모니터링 작업들 (새로 추가)
@@ -212,17 +252,17 @@ def start_scheduler():
     # 1분봉 기술적 지표 분석 (나스닥 선물)
     # - 매우 단기적인 신호 포착 (스캘핑용)
     # - 1분마다 실행
-    scheduler.add_job(run_technical_analysis_1min, "interval", minutes=1)
+    # scheduler.add_job(run_technical_analysis_1min, "interval", minutes=1)
 
     # 15분봉 기술적 지표 분석 (나스닥 선물)
     # - 단기 신호 포착 (단타매매용)
     # - 15분마다 실행
-    scheduler.add_job(run_technical_analysis_15min, "interval", minutes=15)
+    # scheduler.add_job(run_technical_analysis_15min, "interval", minutes=15)
 
     # 일봉 기술적 지표 분석 (나스닥 지수)
     # - 장기 추세 분석 (가장 중요!)
     # - 1시간마다 실행 (중요한 신호라서 자주 체크)
-    scheduler.add_job(run_technical_analysis_daily, "interval", hours=1)
+    # scheduler.add_job(run_technical_analysis_daily, "interval", hours=1)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트용)
@@ -231,11 +271,15 @@ def start_scheduler():
     print("🚀 서버 시작시 초기 분석 실행")
 
     # 기존 실시간 가격 모니터링 즉시 실행
-    run_realtime_price_monitor_job()
+    # run_realtime_price_monitor_job()
 
-    # 🆕 기술적 지표 분석 즉시 실행 (테스트용)
+    # 🆕 기술적 지표 분석 즉시 실행
     print("📊 기술적 지표 초기 분석 시작...")
     run_all_technical_analysis()
+
+    # 🧪 알림 테스트 (개발용)
+    print("🧪 기술적 지표 알림 테스트 실행...")
+    # test_technical_alerts()
 
     print("✅ 모든 초기 분석 완료, 스케줄러 시작")
     scheduler.start()
