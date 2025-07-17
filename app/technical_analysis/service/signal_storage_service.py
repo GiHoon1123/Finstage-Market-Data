@@ -75,9 +75,9 @@ class SignalStorageService:
         기술적 신호를 데이터베이스에 저장
 
         Args:
-            symbol: 심볼 (예: NQ=F, ^IXIC, AAPL)
+            symbol: 심볼 (예: ^IXIC, ^GSPC, AAPL)
             signal_type: 신호 타입 (예: MA200_breakout_up, RSI_overbought)
-            timeframe: 시간대 (1min, 15min, 1hour, 1day)
+            timeframe: 시간대 (1day - 일봉 중심)
             current_price: 신호 발생 시점의 현재 가격
             indicator_value: 관련 지표값 (MA값, RSI값 등)
             signal_strength: 신호 강도 (돌파폭, 과매수 정도 등)
@@ -91,14 +91,14 @@ class SignalStorageService:
             저장된 신호 엔티티 또는 None (중복인 경우)
 
         Example:
-            # 200일선 상향 돌파 신호 저장
+            # 나스닥 지수 200일선 상향 돌파 신호 저장
             signal = service.save_signal(
-                symbol="NQ=F",
+                symbol="^IXIC",
                 signal_type="MA200_breakout_up",
                 timeframe="1day",
-                current_price=23050.75,
-                indicator_value=23000.25,
-                signal_strength=0.22,  # 0.22% 돌파
+                current_price=18550.75,
+                indicator_value=18500.25,
+                signal_strength=0.27,  # 0.27% 돌파
                 market_condition="bullish"
             )
         """

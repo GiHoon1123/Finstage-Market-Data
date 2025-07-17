@@ -509,7 +509,7 @@ class PatternAnalysisService:
     # 테스트 및 디버깅 메서드
     # =================================================================
 
-    def test_pattern_analysis(self, symbol: str = "NQ=F") -> Dict[str, Any]:
+    def test_pattern_analysis(self, symbol: str = "^IXIC") -> Dict[str, Any]:
         """
         패턴 분석 테스트 (개발용)
 
@@ -615,7 +615,7 @@ class PatternAnalysisService:
         finally:
             session.close()
 
-    def cleanup_test_patterns(self, symbol: str = "NQ=F") -> Dict[str, Any]:
+    def cleanup_test_patterns(self, symbol: str = "^IXIC") -> Dict[str, Any]:
         """
         테스트용 패턴 데이터 정리
 
