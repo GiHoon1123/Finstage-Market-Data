@@ -41,108 +41,8 @@ class TechnicalMonitorService:
         self.signal_storage_service = SignalStorageService()
 
     # =========================================================================
-    # 나스닥 선물 모니터링 (단기 - 1분봉, 15분봉)
+    # 주요 지수 모니터링 (일봉 중심)
     # =========================================================================
-
-    def check_nasdaq_futures_1min(self):
-        """
-        나스닥 선물 1분봉 기술적 지표 모니터링
-
-        모니터링 대상:
-        - 20분 이동평균선 돌파/이탈
-        - 50분 이동평균선 돌파/이탈
-        - RSI 과매수/과매도 신호
-        - 볼린저 밴드 터치/돌파
-
-        특징:
-        - 매우 단기적인 신호 (스캘핑, 초단타용)
-        - 변동성이 크고 가짜 신호 가능성 높음
-        - 빠른 대응이 필요한 신호들
-        """
-        symbol = "NQ=F"  # 나스닥 선물
-        timeframe = "1min"
-
-        try:
-            print(f"📊 {symbol} 1분봉 기술적 지표 분석 시작")
-
-            # 1분봉 데이터 가져오기 (1일치 = 약 390개 1분봉)
-            df = self.yahoo_client.get_minute_data(symbol, period="1d")
-            if (
-                df is None or len(df) < 200
-            ):  # 최소 200개 데이터 필요 (200분 이동평균 계산용)
-                print(
-                    f"⚠️ {symbol} 1분봉 데이터 부족: {len(df) if df is not None else 0}개"
-                )
-                return
-
-            # 현재 시간
-            now = datetime.utcnow()
-            current_price = df["close"].iloc[-1]
-
-            print(f"💰 {symbol} 현재가: {current_price:.2f} (1분봉 기준)")
-
-            # 이동평균선 분석
-            self._check_moving_averages(symbol, df, timeframe, now)
-
-            # RSI 분석
-            self._check_rsi_signals(symbol, df, timeframe, now)
-
-            # 볼린저 밴드 분석
-            self._check_bollinger_bands(symbol, df, timeframe, now)
-
-            print(f"✅ {symbol} 1분봉 분석 완료")
-
-        except Exception as e:
-            print(f"❌ {symbol} 1분봉 분석 실패: {e}")
-
-    def check_nasdaq_futures_15min(self):
-        """
-        나스닥 선물 15분봉 기술적 지표 모니터링
-
-        모니터링 대상:
-        - 20봉 이동평균선 돌파/이탈 (5시간)
-        - 50봉 이동평균선 돌파/이탈 (12.5시간)
-        - RSI 과매수/과매도 신호
-        - 볼린저 밴드 터치/돌파
-
-        특징:
-        - 1분봉보다 신뢰도 높은 신호
-        - 단타매매, 스윙트레이딩에 적합
-        - 하루~며칠 보유 포지션에 유용
-        """
-        symbol = "NQ=F"  # 나스닥 선물
-        timeframe = "15min"
-
-        try:
-            print(f"📊 {symbol} 15분봉 기술적 지표 분석 시작")
-
-            # 15분봉 데이터 가져오기 (5일치 = 약 480개 15분봉)
-            df = self.yahoo_client.get_15minute_data(symbol, period="5d")
-            if df is None or len(df) < 200:
-                print(
-                    f"⚠️ {symbol} 15분봉 데이터 부족: {len(df) if df is not None else 0}개"
-                )
-                return
-
-            # 현재 시간
-            now = datetime.utcnow()
-            current_price = df["close"].iloc[-1]
-
-            print(f"💰 {symbol} 현재가: {current_price:.2f} (15분봉 기준)")
-
-            # 이동평균선 분석
-            self._check_moving_averages(symbol, df, timeframe, now)
-
-            # RSI 분석
-            self._check_rsi_signals(symbol, df, timeframe, now)
-
-            # 볼린저 밴드 분석
-            self._check_bollinger_bands(symbol, df, timeframe, now)
-
-            print(f"✅ {symbol} 15분봉 분석 완료")
-
-        except Exception as e:
-            print(f"❌ {symbol} 15분봉 분석 실패: {e}")
 
     # =========================================================================
     # 나스닥 지수 모니터링 (장기 - 일봉)
@@ -164,6 +64,56 @@ class TechnicalMonitorService:
         - 가짜 신호 적고 의미있는 추세 변화
         """
         symbol = "^IXIC"  # 나스닥 지수
+        timeframe = "1day"
+
+        try:
+            print(f"📊 {symbol} 일봉 기술적 지표 분석 시작")
+
+            # 일봉 데이터 가져오기 (1년치 = 약 252개 거래일)
+            df = self.yahoo_client.get_daily_data(symbol, period="1y")
+            if df is None or len(df) < 200:
+                print(
+                    f"⚠️ {symbol} 일봉 데이터 부족: {len(df) if df is not None else 0}개"
+                )
+                return
+
+            # 현재 시간
+            now = datetime.utcnow()
+            current_price = df["close"].iloc[-1]
+
+            print(f"💰 {symbol} 현재가: {current_price:.2f} (일봉 기준)")
+
+            # 이동평균선 분석 (50일선, 200일선)
+            self._check_moving_averages(symbol, df, timeframe, now)
+
+            # 골든크로스/데드크로스 분석 (가장 중요!)
+            self._check_cross_signals(symbol, df, timeframe, now)
+
+            # RSI 분석 (장기 관점)
+            self._check_rsi_signals(symbol, df, timeframe, now)
+
+            print(f"✅ {symbol} 일봉 분석 완료")
+
+        except Exception as e:
+            print(f"❌ {symbol} 일봉 분석 실패: {e}")
+
+    def check_sp500_index_daily(self):
+        """
+        S&P 500 지수 일봉 기술적 지표 모니터링
+
+        모니터링 대상:
+        - 50일 이동평균선 돌파/이탈 (중기 추세)
+        - 200일 이동평균선 돌파/이탈 (장기 추세, 가장 중요!)
+        - 골든크로스/데드크로스 (50일선 vs 200일선)
+        - RSI 과매수/과매도 (장기 관점)
+
+        특징:
+        - 미국 전체 시장을 대표하는 지수
+        - 500대 기업의 시가총액 가중평균
+        - 가장 신뢰도 높은 신호들
+        - 중장기 투자 관점에서 중요
+        """
+        symbol = "^GSPC"  # S&P 500 지수
         timeframe = "1day"
 
         try:
@@ -541,30 +491,28 @@ class TechnicalMonitorService:
         모든 기술적 지표 모니터링을 한번에 실행
 
         실행 순서:
-        1. 나스닥 선물 1분봉 (가장 빠른 신호)
-        2. 나스닥 선물 15분봉 (중간 신호)
-        3. 나스닥 지수 일봉 (가장 중요한 신호)
+        1. 나스닥 지수 일봉 (기술주 중심)
+        2. S&P 500 지수 일봉 (전체 시장)
         """
         try:
-            print("🚀 기술적 지표 통합 모니터링 시작")
+            print("🚀 주요 지수 기술적 지표 모니터링 시작")
             start_time = datetime.utcnow()
 
-            # 1. 나스닥 선물 1분봉 분석
-            self.check_nasdaq_futures_1min()
-
-            # 2. 나스닥 선물 15분봉 분석
-            self.check_nasdaq_futures_15min()
-
-            # 3. 나스닥 지수 일봉 분석
+            # 1. 나스닥 지수 일봉 분석 (기술주 중심)
             self.check_nasdaq_index_daily()
+
+            # 2. S&P 500 지수 일봉 분석 (전체 시장)
+            self.check_sp500_index_daily()
 
             end_time = datetime.utcnow()
             duration = (end_time - start_time).total_seconds()
 
-            print(f"✅ 기술적 지표 통합 모니터링 완료 (소요시간: {duration:.1f}초)")
+            print(
+                f"✅ 주요 지수 기술적 지표 모니터링 완료 (소요시간: {duration:.1f}초)"
+            )
 
         except Exception as e:
-            print(f"❌ 기술적 지표 통합 모니터링 실패: {e}")
+            print(f"❌ 주요 지수 기술적 지표 모니터링 실패: {e}")
 
     def get_current_technical_status(
         self, symbol: str, timeframe: str
@@ -615,38 +563,38 @@ class TechnicalMonitorService:
 
     def test_all_technical_alerts(self):
         """
-        모든 기술적 지표 알림 테스트
+        주요 지수 기술적 지표 알림 테스트
 
+        나스닥 지수(^IXIC)와 S&P 500 지수(^GSPC)의 일봉 기반 신호들을 테스트합니다.
         실제 돌파가 없어도 가짜 데이터로 모든 알림 타입을 테스트해볼 수 있습니다.
-        장이 닫힌 시간이나 개발 중에 알림이 제대로 가는지 확인용으로 사용하세요.
         """
         from datetime import datetime
 
-        print("🧪 기술적 지표 알림 테스트 시작")
+        print("🧪 주요 지수 기술적 지표 알림 테스트 시작")
         now = datetime.utcnow()
 
         try:
-            # 1. 이동평균선 돌파 테스트 (상향)
-            print("📈 1. 이동평균선 상향 돌파 테스트")
+            # 1. 나스닥 지수 50일선 상향 돌파 테스트
+            print("📈 1. 나스닥 지수 50일선 상향 돌파 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_1 = self.signal_storage_service.save_ma_breakout_signal(
-                symbol="NQ=F",
-                timeframe="1min",
-                ma_period=20,
+                symbol="^IXIC",
+                timeframe="1day",
+                ma_period=50,
                 breakout_direction="up",
-                current_price=23050.75,
-                ma_value=23000.25,
-                volume=50000,
+                current_price=18520.75,
+                ma_value=18480.25,
+                volume=1500000,
             )
 
             # 텔레그램 알림 전송
             send_ma_breakout_message(
-                symbol="NQ=F",
-                timeframe="1min",
-                ma_period=20,
-                current_price=23050.75,
-                ma_value=23000.25,
+                symbol="^IXIC",
+                timeframe="1day",
+                ma_period=50,
+                current_price=18520.75,
+                ma_value=18480.25,
                 signal_type="breakout_up",
                 now=now,
             )
@@ -654,29 +602,31 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_1:
                 self.signal_storage_service.mark_alert_sent(saved_signal_1.id)
-                print(f"💾 신호 DB 저장 완료 (ID: {saved_signal_1.id})")
+                print(
+                    f"💾 나스닥 50일선 돌파 신호 DB 저장 완료 (ID: {saved_signal_1.id})"
+                )
 
-            # 2. 이동평균선 돌파 테스트 (하향)
-            print("📉 2. 이동평균선 하향 이탈 테스트")
+            # 2. 나스닥 지수 200일선 하향 이탈 테스트
+            print("📉 2. 나스닥 지수 200일선 하향 이탈 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_2 = self.signal_storage_service.save_ma_breakout_signal(
-                symbol="NQ=F",
-                timeframe="15min",
-                ma_period=50,
+                symbol="^IXIC",
+                timeframe="1day",
+                ma_period=200,
                 breakout_direction="down",
-                current_price=22950.25,
-                ma_value=23000.75,
-                volume=75000,
+                current_price=18350.25,
+                ma_value=18420.75,
+                volume=1800000,
             )
 
             # 텔레그램 알림 전송
             send_ma_breakout_message(
-                symbol="NQ=F",
-                timeframe="15min",
-                ma_period=50,
-                current_price=22950.25,
-                ma_value=23000.75,
+                symbol="^IXIC",
+                timeframe="1day",
+                ma_period=200,
+                current_price=18350.25,
+                ma_value=18420.75,
                 signal_type="breakout_down",
                 now=now,
             )
@@ -684,25 +634,27 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_2:
                 self.signal_storage_service.mark_alert_sent(saved_signal_2.id)
-                print(f"💾 신호 DB 저장 완료 (ID: {saved_signal_2.id})")
+                print(
+                    f"💾 나스닥 200일선 이탈 신호 DB 저장 완료 (ID: {saved_signal_2.id})"
+                )
 
-            # 3. RSI 과매수 테스트
-            print("🔴 3. RSI 과매수 테스트")
+            # 3. 나스닥 지수 RSI 과매수 테스트
+            print("🔴 3. 나스닥 지수 RSI 과매수 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_3 = self.signal_storage_service.save_rsi_signal(
-                symbol="NQ=F",
-                timeframe="15min",
+                symbol="^IXIC",
+                timeframe="1day",
                 rsi_value=75.8,
-                current_price=23050.75,
+                current_price=18520.75,
                 signal_type_suffix="overbought",
-                volume=60000,
+                volume=1600000,
             )
 
             # 텔레그램 알림 전송
             send_rsi_alert_message(
-                symbol="NQ=F",
-                timeframe="15min",
+                symbol="^IXIC",
+                timeframe="1day",
                 current_rsi=75.8,
                 signal_type="overbought",
                 now=now,
@@ -711,25 +663,27 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_3:
                 self.signal_storage_service.mark_alert_sent(saved_signal_3.id)
-                print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal_3.id})")
+                print(
+                    f"💾 나스닥 RSI 과매수 신호 DB 저장 완료 (ID: {saved_signal_3.id})"
+                )
 
-            # 4. RSI 과매도 테스트
-            print("🟢 4. RSI 과매도 테스트")
+            # 4. 나스닥 지수 RSI 과매도 테스트
+            print("🟢 4. 나스닥 지수 RSI 과매도 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_4 = self.signal_storage_service.save_rsi_signal(
-                symbol="NQ=F",
-                timeframe="1min",
+                symbol="^IXIC",
+                timeframe="1day",
                 rsi_value=28.3,
-                current_price=22980.50,
+                current_price=18280.50,
                 signal_type_suffix="oversold",
-                volume=80000,
+                volume=2000000,
             )
 
             # 텔레그램 알림 전송
             send_rsi_alert_message(
-                symbol="NQ=F",
-                timeframe="1min",
+                symbol="^IXIC",
+                timeframe="1day",
                 current_rsi=28.3,
                 signal_type="oversold",
                 now=now,
@@ -738,28 +692,30 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_4:
                 self.signal_storage_service.mark_alert_sent(saved_signal_4.id)
-                print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal_4.id})")
+                print(
+                    f"💾 나스닥 RSI 과매도 신호 DB 저장 완료 (ID: {saved_signal_4.id})"
+                )
 
-            # 5. 볼린저 밴드 상단 터치 테스트
-            print("🔴 5. 볼린저 밴드 상단 터치 테스트")
+            # 5. 나스닥 지수 볼린저 밴드 상단 터치 테스트
+            print("🔴 5. 나스닥 지수 볼린저 밴드 상단 터치 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_5 = self.signal_storage_service.save_bollinger_signal(
-                symbol="NQ=F",
-                timeframe="15min",
-                current_price=23120.50,
-                band_value=23125.00,
+                symbol="^IXIC",
+                timeframe="1day",
+                current_price=18620.50,
+                band_value=18625.00,
                 signal_type_suffix="touch_upper",
-                volume=65000,
+                volume=1400000,
             )
 
             # 텔레그램 알림 전송
             send_bollinger_alert_message(
-                symbol="NQ=F",
-                timeframe="15min",
-                current_price=23120.50,
-                upper_band=23125.00,
-                lower_band=22980.00,
+                symbol="^IXIC",
+                timeframe="1day",
+                current_price=18620.50,
+                upper_band=18625.00,
+                lower_band=18280.00,
                 signal_type="touch_upper",
                 now=now,
             )
@@ -767,28 +723,30 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_5:
                 self.signal_storage_service.mark_alert_sent(saved_signal_5.id)
-                print(f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_5.id})")
+                print(
+                    f"💾 나스닥 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_5.id})"
+                )
 
-            # 6. 볼린저 밴드 하단 터치 테스트
-            print("🟢 6. 볼린저 밴드 하단 터치 테스트")
+            # 6. 나스닥 지수 볼린저 밴드 하단 터치 테스트
+            print("🟢 6. 나스닥 지수 볼린저 밴드 하단 터치 테스트")
 
             # 🆕 DB에 신호 저장
             saved_signal_6 = self.signal_storage_service.save_bollinger_signal(
-                symbol="NQ=F",
-                timeframe="1min",
-                current_price=22985.25,
-                band_value=22980.00,
+                symbol="^IXIC",
+                timeframe="1day",
+                current_price=18285.25,
+                band_value=18280.00,
                 signal_type_suffix="touch_lower",
-                volume=70000,
+                volume=1700000,
             )
 
             # 텔레그램 알림 전송
             send_bollinger_alert_message(
-                symbol="NQ=F",
-                timeframe="1min",
-                current_price=22985.25,
-                upper_band=23120.00,
-                lower_band=22980.00,
+                symbol="^IXIC",
+                timeframe="1day",
+                current_price=18285.25,
+                upper_band=18620.00,
+                lower_band=18280.00,
                 signal_type="touch_lower",
                 now=now,
             )
@@ -796,7 +754,9 @@ class TechnicalMonitorService:
             # 알림 발송 상태 업데이트
             if saved_signal_6:
                 self.signal_storage_service.mark_alert_sent(saved_signal_6.id)
-                print(f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_6.id})")
+                print(
+                    f"💾 나스닥 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_6.id})"
+                )
 
             # 7. 골든크로스 테스트
             print("🚀 7. 골든크로스 테스트")
@@ -871,39 +831,94 @@ class TechnicalMonitorService:
                 self.signal_storage_service.mark_alert_sent(saved_signal_9.id)
                 print(f"💾 RSI 상승 모멘텀 신호 DB 저장 완료 (ID: {saved_signal_9.id})")
 
-            # 10. 볼린저 밴드 상단 돌파 테스트
-            print("🚀 10. 볼린저 밴드 상단 돌파 테스트")
+            # 10. S&P 500 200일선 상향 돌파 테스트
+            print("🚀 10. S&P 500 200일선 상향 돌파 테스트")
 
             # 🆕 DB에 신호 저장
-            saved_signal_10 = self.signal_storage_service.save_bollinger_signal(
-                symbol="NQ=F",
-                timeframe="15min",
-                current_price=23150.75,
-                band_value=23125.00,
-                signal_type_suffix="break_upper",
-                volume=90000,
+            saved_signal_10 = self.signal_storage_service.save_ma_breakout_signal(
+                symbol="^GSPC",
+                timeframe="1day",
+                ma_period=200,
+                breakout_direction="up",
+                current_price=5850.75,
+                ma_value=5800.25,
+                volume=2500000,
             )
 
             # 텔레그램 알림 전송
-            send_bollinger_alert_message(
-                symbol="NQ=F",
-                timeframe="15min",
-                current_price=23150.75,
-                upper_band=23125.00,
-                lower_band=22980.00,
-                signal_type="break_upper",
+            send_ma_breakout_message(
+                symbol="^GSPC",
+                timeframe="1day",
+                ma_period=200,
+                current_price=5850.75,
+                ma_value=5800.25,
+                signal_type="breakout_up",
                 now=now,
             )
 
             # 알림 발송 상태 업데이트
             if saved_signal_10:
                 self.signal_storage_service.mark_alert_sent(saved_signal_10.id)
+                print(f"💾 S&P 500 신호 DB 저장 완료 (ID: {saved_signal_10.id})")
+
+            # 11. S&P 500 골든크로스 테스트
+            print("🌟 11. S&P 500 골든크로스 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_11 = self.signal_storage_service.save_cross_signal(
+                symbol="^GSPC",
+                cross_type="golden_cross",
+                ma_short_value=5820.50,
+                ma_long_value=5800.25,
+                current_price=5850.75,
+                volume=2800000,
+            )
+
+            # 텔레그램 알림 전송
+            send_golden_cross_message(
+                symbol="^GSPC", ma_50=5820.50, ma_200=5800.25, now=now
+            )
+
+            # 알림 발송 상태 업데이트
+            if saved_signal_11:
+                self.signal_storage_service.mark_alert_sent(saved_signal_11.id)
                 print(
-                    f"💾 볼린저 밴드 상단 돌파 신호 DB 저장 완료 (ID: {saved_signal_10.id})"
+                    f"💾 S&P 500 골든크로스 신호 DB 저장 완료 (ID: {saved_signal_11.id})"
                 )
 
+            # 12. S&P 500 RSI 과매수 테스트
+            print("🔴 12. S&P 500 RSI 과매수 테스트")
+
+            # 🆕 DB에 신호 저장
+            saved_signal_12 = self.signal_storage_service.save_rsi_signal(
+                symbol="^GSPC",
+                timeframe="1day",
+                rsi_value=72.5,
+                current_price=5850.75,
+                signal_type_suffix="overbought",
+                volume=2200000,
+            )
+
+            # 텔레그램 알림 전송
+            send_rsi_alert_message(
+                symbol="^GSPC",
+                timeframe="1day",
+                current_rsi=72.5,
+                signal_type="overbought",
+                now=now,
+            )
+
+            # 알림 발송 상태 업데이트
+            if saved_signal_12:
+                self.signal_storage_service.mark_alert_sent(saved_signal_12.id)
+                print(f"💾 S&P 500 RSI 신호 DB 저장 완료 (ID: {saved_signal_12.id})")
+
             print("✅ 모든 기술적 지표 알림 테스트 완료!")
-            print("📱 텔레그램에서 10개의 테스트 알림을 확인해보세요.")
+            print("📱 텔레그램에서 12개의 테스트 알림을 확인해보세요.")
+            print("🎯 테스트 신호 구성:")
+            print("   - 나스닥 지수 (^IXIC): 골든크로스, 데드크로스, RSI")
+            print("   - S&P 500 지수 (^GSPC): 200일선 돌파, 골든크로스, RSI")
+            print("   - 기존 테스트 신호들 (호환성 유지)")
 
         except Exception as e:
             print(f"❌ 알림 테스트 실패: {e}")
@@ -926,35 +941,35 @@ class TechnicalMonitorService:
 
         try:
             if alert_type == "ma_breakout":
-                print("📈 이동평균선 돌파 테스트")
+                print("📈 나스닥 지수 50일선 돌파 테스트")
                 send_ma_breakout_message(
-                    symbol="NQ=F",
-                    timeframe="1min",
-                    ma_period=200,
-                    current_price=23080.50,
-                    ma_value=23050.25,
+                    symbol="^IXIC",
+                    timeframe="1day",
+                    ma_period=50,
+                    current_price=18580.50,
+                    ma_value=18550.25,
                     signal_type="breakout_up",
                     now=now,
                 )
 
             elif alert_type == "rsi":
-                print("🔴 RSI 과매수 테스트")
+                print("🔴 나스닥 지수 RSI 과매수 테스트")
                 send_rsi_alert_message(
-                    symbol="NQ=F",
-                    timeframe="15min",
+                    symbol="^IXIC",
+                    timeframe="1day",
                     current_rsi=72.5,
                     signal_type="overbought",
                     now=now,
                 )
 
             elif alert_type == "bollinger":
-                print("🟢 볼린저 밴드 하단 터치 테스트")
+                print("🟢 나스닥 지수 볼린저 밴드 하단 터치 테스트")
                 send_bollinger_alert_message(
-                    symbol="NQ=F",
-                    timeframe="1min",
-                    current_price=22975.25,
-                    upper_band=23120.00,
-                    lower_band=22970.00,
+                    symbol="^IXIC",
+                    timeframe="1day",
+                    current_price=18275.25,
+                    upper_band=18620.00,
+                    lower_band=18270.00,
                     signal_type="touch_lower",
                     now=now,
                 )

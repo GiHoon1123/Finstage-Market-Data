@@ -123,58 +123,34 @@ def run_realtime_price_monitor_job():
 # =============================================================================
 
 
-def run_technical_analysis_1min():
+def run_daily_index_analysis():
     """
-    1분봉 기술적 지표 분석 (나스닥 선물)
-    - 매우 단기적인 신호 포착
-    - 스캘핑, 초단타 매매용
-    - 1분마다 실행
-    """
-    print("📊 1분봉 기술적 지표 분석 시작")
-    try:
-        service = TechnicalMonitorService()
-        service.check_nasdaq_futures_1min()
-        print("✅ 1분봉 기술적 지표 분석 완료")
-    except Exception as e:
-        print(f"❌ 1분봉 기술적 지표 분석 실패: {e}")
-
-
-def run_technical_analysis_15min():
-    """
-    15분봉 기술적 지표 분석 (나스닥 선물)
-    - 단기 신호 포착 (1분봉보다 신뢰도 높음)
-    - 단타매매, 스윙트레이딩용
-    - 15분마다 실행
-    """
-    print("📊 15분봉 기술적 지표 분석 시작")
-    try:
-        service = TechnicalMonitorService()
-        service.check_nasdaq_futures_15min()
-        print("✅ 15분봉 기술적 지표 분석 완료")
-    except Exception as e:
-        print(f"❌ 15분봉 기술적 지표 분석 실패: {e}")
-
-
-def run_technical_analysis_daily():
-    """
-    일봉 기술적 지표 분석 (나스닥 지수)
-    - 장기 추세 분석 (가장 중요하고 신뢰도 높음)
-    - 중장기 투자용
+    주요 지수 일봉 기술적 지표 분석
+    - 나스닥 지수 (^IXIC): 기술주 중심
+    - S&P 500 지수 (^GSPC): 전체 시장
+    - 장기 투자 관점에서 가장 중요한 신호들
     - 1시간마다 실행 (중요한 신호라서 자주 체크)
     """
-    print("📊 일봉 기술적 지표 분석 시작")
+    print("📊 주요 지수 일봉 기술적 지표 분석 시작")
     try:
         service = TechnicalMonitorService()
+
+        # 나스닥 지수 분석
         service.check_nasdaq_index_daily()
-        print("✅ 일봉 기술적 지표 분석 완료")
+
+        # S&P 500 지수 분석
+        service.check_sp500_index_daily()
+
+        print("✅ 주요 지수 일봉 기술적 지표 분석 완료")
     except Exception as e:
-        print(f"❌ 일봉 기술적 지표 분석 실패: {e}")
+        print(f"❌ 주요 지수 일봉 기술적 지표 분석 실패: {e}")
 
 
 def run_all_technical_analysis():
     """
     모든 기술적 지표 분석을 한번에 실행
     - 테스트용 또는 수동 실행용
+    - 나스닥 지수 + S&P 500 지수 통합 분석
     """
     print("🚀 전체 기술적 지표 분석 시작")
     try:
@@ -355,23 +331,15 @@ def start_scheduler():
     # scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
 
     # =============================================================================
-    # 🆕 기술적 지표 모니터링 작업들 (새로 추가)
+    # 🆕 주요 지수 기술적 지표 모니터링 작업들
     # =============================================================================
 
-    # 1분봉 기술적 지표 분석 (나스닥 선물)
-    # - 매우 단기적인 신호 포착 (스캘핑용)
-    # - 1분마다 실행
-    # scheduler.add_job(run_technical_analysis_1min, "interval", minutes=1)
-
-    # 15분봉 기술적 지표 분석 (나스닥 선물)
-    # - 단기 신호 포착 (단타매매용)
-    # - 15분마다 실행
-    # scheduler.add_job(run_technical_analysis_15min, "interval", minutes=15)
-
-    # 일봉 기술적 지표 분석 (나스닥 지수)
-    # - 장기 추세 분석 (가장 중요!)
+    # 주요 지수 일봉 기술적 지표 분석 (나스닥 + S&P 500)
+    # - 나스닥 지수 (^IXIC): 기술주 중심 분석
+    # - S&P 500 지수 (^GSPC): 전체 시장 분석
+    # - 장기 투자 관점에서 가장 중요한 신호들
     # - 1시간마다 실행 (중요한 신호라서 자주 체크)
-    # scheduler.add_job(run_technical_analysis_daily, "interval", hours=1)
+    # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트용)
@@ -403,17 +371,17 @@ def start_scheduler():
     # 서버 시작시 즉시 실행 (테스트 및 초기화)
     # =============================================================================
 
-    # 🧪 알림 테스트 (개발용)
+    # 🧪 알림 테스트 (개발용) - 주석 해제하면 서버 시작시 12개 테스트 알림 전송
     print("🧪 기술적 지표 알림 테스트 실행...")
-    test_technical_alerts()
+    test_technical_alerts()  # 나스닥 + S&P 500 테스트 알림
 
     # 🎯 Phase 2: 결과 추적 초기화 (서버 시작시)
     print("🎯 최근 신호들 결과 추적 초기화...")
-    initialize_recent_signals_tracking()
+    # initialize_recent_signals_tracking()
 
     # 📈 Phase 2: 결과 추적 테스트 (개발용)
     print("🧪 결과 추적 기능 테스트...")
-    test_outcome_tracking()
+    # test_outcome_tracking()
 
     print("✅ 모든 초기 분석 및 Phase 2 초기화 완료, 스케줄러 시작")
     scheduler.start()
