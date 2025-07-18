@@ -249,7 +249,7 @@ class OutcomeTrackingService:
             이미 업데이트된 시간대는 건너뜁니다.
         """
         # 현재 가격 조회
-        current_price = self.yahoo_client.get_latest_price(signal.symbol)
+        current_price = self.yahoo_client.get_latest_minute_price(signal.symbol)
         if current_price is None:
             print(f"⚠️ 현재 가격 조회 실패: {signal.symbol}")
             return False

@@ -139,21 +139,17 @@ class SignalStorageService:
             saved_signal = repository.save(signal)
             session.commit()
 
-            # 🆕 4. 결과 추적 자동 시작 (과거 데이터가 아닌 경우에만)
-            if (
-                not triggered_at
-                or (datetime.utcnow() - saved_signal.triggered_at).days < 30
-            ):
-                try:
-                    from app.technical_analysis.service.outcome_tracking_service import (
-                        OutcomeTrackingService,
-                    )
+            # 🆕 4. 결과 추적 자동 시작 (모든 신호에 대해 실행)
+            try:
+                from app.technical_analysis.service.outcome_tracking_service import (
+                    OutcomeTrackingService,
+                )
 
-                    outcome_service = OutcomeTrackingService()
-                    outcome_service.initialize_outcome_tracking(saved_signal.id)
-                    print(f"📊 결과 추적 시작: 신호 ID {saved_signal.id}")
-                except Exception as e:
-                    print(f"⚠️ 결과 추적 시작 실패: {e}")
+                outcome_service = OutcomeTrackingService()
+                outcome_service.initialize_outcome_tracking(saved_signal.id)
+                print(f"📊 결과 추적 시작: 신호 ID {saved_signal.id}")
+            except Exception as e:
+                print(f"⚠️ 결과 추적 시작 실패: {e}")
 
             print(
                 f"✅ 기술적 신호 저장 완료: {symbol} {signal_type} (ID: {saved_signal.id})"

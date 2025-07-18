@@ -754,7 +754,7 @@ def start_scheduler():
     # 신호 결과 추적 업데이트 (1시간마다)
     # - 미완료된 신호들의 가격 및 수익률 업데이트
     # - Phase 2의 핵심 기능
-    # scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
+    scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
 
     # 최근 신호들 결과 추적 초기화 (6시간마다)
     # - 아직 추적이 시작되지 않은 신호들을 찾아서 추적 시작
