@@ -379,7 +379,10 @@ class SignalPatternRepository:
     # =================================================================
 
     def get_pattern_performance_stats(
-        self, pattern_name: Optional[str] = None, symbol: Optional[str] = None, min_occurrences: int = 5
+        self,
+        pattern_name: Optional[str] = None,
+        symbol: Optional[str] = None,
+        min_occurrences: int = 5,
     ) -> List[Dict[str, Any]]:
         """
         패턴 성과 통계 조회
@@ -432,7 +435,9 @@ class SignalPatternRepository:
                 "pattern_name": result.pattern_name,
                 "symbol": result.symbol,
                 "total_count": result.total_count,
-                "avg_duration": float(result.avg_duration) if result.avg_duration else 0.0,
+                "avg_duration": (
+                    float(result.avg_duration) if result.avg_duration else 0.0
+                ),
             }
             for result in results
         ]
@@ -466,7 +471,7 @@ class SignalPatternRepository:
                     / func.count(SignalPattern.id)
                 ).label("success_rate"),
             )
-            .filter(outcome_column.isnot(None))
+            .filter(outcome_column != None)
             .group_by(SignalPattern.pattern_name)
             .having(func.count(SignalPattern.id) >= min_occurrences)
             .order_by(desc("avg_return"))

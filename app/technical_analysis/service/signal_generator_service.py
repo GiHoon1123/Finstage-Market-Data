@@ -419,67 +419,65 @@ class SignalGeneratorService:
             ma_50 = self.indicator_service.calculate_moving_average(df["close"], 50)
             ma_200 = self.indicator_service.calculate_moving_average(df["close"], 200)
 
-            # 크로스 신호 감지
-            cross_signal = self.indicator_service.detect_cross_signals(ma_50, ma_200)
+            # 각 날짜별로 크로스 신호 체크 (수정된 로직)
+            for i in range(1, min(len(ma_50), len(ma_200))):
+                if pd.isna(ma_50.iloc[i]) or pd.isna(ma_200.iloc[i]):
+                    continue
+                if pd.isna(ma_50.iloc[i - 1]) or pd.isna(ma_200.iloc[i - 1]):
+                    continue
 
-            if cross_signal:
-                # 크로스가 발생한 지점들 찾기
-                for i in range(1, min(len(ma_50), len(ma_200))):
-                    if pd.isna(ma_50.iloc[i]) or pd.isna(ma_200.iloc[i]):
-                        continue
-                    if pd.isna(ma_50.iloc[i - 1]) or pd.isna(ma_200.iloc[i - 1]):
-                        continue
+                current_50 = ma_50.iloc[i]
+                current_200 = ma_200.iloc[i]
+                prev_50 = ma_50.iloc[i - 1]
+                prev_200 = ma_200.iloc[i - 1]
 
-                    current_50 = ma_50.iloc[i]
-                    current_200 = ma_200.iloc[i]
-                    prev_50 = ma_50.iloc[i - 1]
-                    prev_200 = ma_200.iloc[i - 1]
+                # 골든크로스: 이전에는 50일선이 200일선 아래, 지금은 위
+                if prev_50 <= prev_200 and current_50 > current_200:
+                    print(
+                        f"🚀 골든크로스 발견: {df.index[i]} - 50일선: {current_50:.2f}, 200일선: {current_200:.2f}"
+                    )
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": "golden_cross",
+                            "triggered_at": pd.Timestamp(df.index[i]).to_pydatetime(),
+                            "current_price": float(df["close"].iloc[i]),
+                            "indicator_value": float(current_50),
+                            "signal_strength": abs(
+                                (current_50 - current_200) / current_200
+                            )
+                            * 100,
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
 
-                    # 골든크로스: 이전에는 50일선이 200일선 아래, 지금은 위
-                    if prev_50 <= prev_200 and current_50 > current_200:
-                        signals.append(
-                            {
-                                "symbol": symbol,
-                                "signal_type": "golden_cross",
-                                "triggered_at": pd.Timestamp(
-                                    df.index[i]
-                                ).to_pydatetime(),
-                                "current_price": float(df["close"].iloc[i]),
-                                "indicator_value": float(current_50),
-                                "signal_strength": abs(
-                                    (current_50 - current_200) / current_200
-                                )
-                                * 100,
-                                "volume": (
-                                    int(df["volume"].iloc[i])
-                                    if pd.notna(df["volume"].iloc[i])
-                                    else None
-                                ),
-                            }
-                        )
-
-                    # 데드크로스: 이전에는 50일선이 200일선 위, 지금은 아래
-                    elif prev_50 >= prev_200 and current_50 < current_200:
-                        signals.append(
-                            {
-                                "symbol": symbol,
-                                "signal_type": "dead_cross",
-                                "triggered_at": pd.Timestamp(
-                                    df.index[i]
-                                ).to_pydatetime(),
-                                "current_price": float(df["close"].iloc[i]),
-                                "indicator_value": float(current_50),
-                                "signal_strength": abs(
-                                    (current_200 - current_50) / current_200
-                                )
-                                * 100,
-                                "volume": (
-                                    int(df["volume"].iloc[i])
-                                    if pd.notna(df["volume"].iloc[i])
-                                    else None
-                                ),
-                            }
-                        )
+                # 데드크로스: 이전에는 50일선이 200일선 위, 지금은 아래
+                elif prev_50 >= prev_200 and current_50 < current_200:
+                    print(
+                        f"💀 데드크로스 발견: {df.index[i]} - 50일선: {current_50:.2f}, 200일선: {current_200:.2f}"
+                    )
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": "dead_cross",
+                            "triggered_at": pd.Timestamp(df.index[i]).to_pydatetime(),
+                            "current_price": float(df["close"].iloc[i]),
+                            "indicator_value": float(current_50),
+                            "signal_strength": abs(
+                                (current_200 - current_50) / current_200
+                            )
+                            * 100,
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
 
         except Exception as e:
             print(f"❌ {symbol} 크로스 신호 생성 실패: {e}")

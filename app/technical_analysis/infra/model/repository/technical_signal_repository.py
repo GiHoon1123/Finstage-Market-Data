@@ -195,7 +195,7 @@ class TechnicalSignalRepository:
             query = query.filter(TechnicalSignal.signal_type == signal_type)
 
         query = query.order_by(asc(TechnicalSignal.triggered_at))
-        
+
         if limit:
             query = query.limit(limit)
 
@@ -354,7 +354,7 @@ class TechnicalSignalRepository:
         ).filter(
             and_(
                 TechnicalSignal.signal_type == signal_type,
-                TechnicalSignal.signal_strength.isnot(None),
+                TechnicalSignal.signal_strength != None,
             )
         )
 

@@ -180,11 +180,11 @@ class SignalOutcomeRepository:
                     SignalOutcome.is_complete == False,
                     TechnicalSignal.triggered_at <= cutoff_time,
                     or_(
-                        SignalOutcome.price_1h_after.is_(None),
-                        SignalOutcome.price_4h_after.is_(None),
-                        SignalOutcome.price_1d_after.is_(None),
-                        SignalOutcome.price_1w_after.is_(None),
-                        SignalOutcome.price_1m_after.is_(None),
+                        SignalOutcome.price_1h_after == None,
+                        SignalOutcome.price_4h_after == None,
+                        SignalOutcome.price_1d_after == None,
+                        SignalOutcome.price_1w_after == None,
+                        SignalOutcome.price_1m_after == None,
                     ),
                 )
             )
@@ -409,15 +409,17 @@ class SignalOutcomeRepository:
             timeframe_eval, SignalOutcome.is_successful_1d
         )
 
-        # 쿼리 실행
+        # 쿼리 실행 (SQLAlchemy 호환성을 위해 CASE 문 사용)
         results = (
             self.session.query(
                 TechnicalSignal.signal_type,
                 func.count(SignalOutcome.id).label("total_count"),
-                func.sum(func.cast(success_field, func.INTEGER)).label("success_count"),
+                func.count(func.case((success_field == True, 1))).label(
+                    "success_count"
+                ),
             )
             .join(SignalOutcome)
-            .filter(success_field.is_not(None))  # 평가가 완료된 것만
+            .filter(success_field != None)  # 평가가 완료된 것만
             .group_by(TechnicalSignal.signal_type)
             .having(func.count(SignalOutcome.id) >= min_samples)
             .all()
@@ -472,7 +474,7 @@ class SignalOutcomeRepository:
                 func.min(return_field).label("min_return"),
             )
             .join(SignalOutcome)
-            .filter(return_field.is_not(None))  # 수익률이 계산된 것만
+            .filter(return_field != None)  # 수익률이 계산된 것만
             .group_by(TechnicalSignal.signal_type)
             .having(func.count(SignalOutcome.id) >= min_samples)
             .all()
@@ -524,7 +526,7 @@ class SignalOutcomeRepository:
                 func.avg(return_field).label("avg_return"),
             )
             .join(SignalOutcome)
-            .filter(return_field.is_not(None))
+            .filter(return_field != None)
             .group_by(
                 TechnicalSignal.signal_type,
                 TechnicalSignal.symbol,
@@ -645,7 +647,7 @@ class SignalOutcomeRepository:
             .filter(
                 and_(
                     TechnicalSignal.signal_type == signal_type,
-                    return_field.is_not(None),
+                    return_field != None,
                 )
             )
         )

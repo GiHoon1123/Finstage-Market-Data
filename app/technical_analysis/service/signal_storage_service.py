@@ -68,6 +68,7 @@ class SignalStorageService:
         volume: Optional[int] = None,
         market_condition: Optional[str] = None,
         additional_context: Optional[Dict[str, Any]] = None,
+        triggered_at: Optional[datetime] = None,
         check_duplicate: bool = True,
         duplicate_window_minutes: int = 60,
     ) -> Optional[TechnicalSignal]:
@@ -122,7 +123,7 @@ class SignalStorageService:
                 symbol=symbol,
                 signal_type=signal_type,
                 timeframe=timeframe,
-                triggered_at=datetime.utcnow(),
+                triggered_at=triggered_at if triggered_at else datetime.utcnow(),
                 current_price=current_price,
                 indicator_value=indicator_value,
                 signal_strength=signal_strength,
@@ -137,6 +138,22 @@ class SignalStorageService:
             # 3. 데이터베이스에 저장
             saved_signal = repository.save(signal)
             session.commit()
+
+            # 🆕 4. 결과 추적 자동 시작 (과거 데이터가 아닌 경우에만)
+            if (
+                not triggered_at
+                or (datetime.utcnow() - saved_signal.triggered_at).days < 30
+            ):
+                try:
+                    from app.technical_analysis.service.outcome_tracking_service import (
+                        OutcomeTrackingService,
+                    )
+
+                    outcome_service = OutcomeTrackingService()
+                    outcome_service.initialize_outcome_tracking(saved_signal.id)
+                    print(f"📊 결과 추적 시작: 신호 ID {saved_signal.id}")
+                except Exception as e:
+                    print(f"⚠️ 결과 추적 시작 실패: {e}")
 
             print(
                 f"✅ 기술적 신호 저장 완료: {symbol} {signal_type} (ID: {saved_signal.id})"

@@ -57,7 +57,7 @@ class TechnicalIndicatorService:
         self, current_price: float, current_ma: float, prev_price: float, prev_ma: float
     ) -> Optional[str]:
         """
-        이동평균선 돌파 감지
+        이동평균선 돌파 감지 (개선된 버전)
 
         돌파란?
         - 주가가 이동평균선을 위로 뚫고 올라가는 것 (상향 돌파)
@@ -75,17 +75,28 @@ class TechnicalIndicatorService:
             None: 돌파 없음
         """
         try:
-            # 이전에는 주가가 이동평균선 아래 있었는데, 지금은 위에 있음 → 상향 돌파
-            if prev_price <= prev_ma and current_price > current_ma:
+            # 돌파 강도 계산 (최소 0.5% 이상 돌파해야 유의미한 신호로 인정)
+            min_breakout_pct = 0.005  # 0.5%
+
+            # 상향 돌파: 이전에는 MA 근처나 아래, 지금은 확실히 위
+            if (
+                prev_price <= prev_ma * 1.01  # 이전에는 MA 1% 이내 또는 아래
+                and current_price > current_ma * (1 + min_breakout_pct)
+            ):  # 지금은 MA 0.5% 이상 위
+                breakout_strength = ((current_price - current_ma) / current_ma) * 100
                 print(
-                    f"🚀 상향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f})"
+                    f"🚀 상향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f}, 강도: {breakout_strength:.2f}%)"
                 )
                 return "breakout_up"
 
-            # 이전에는 주가가 이동평균선 위에 있었는데, 지금은 아래에 있음 → 하향 돌파
-            elif prev_price >= prev_ma and current_price < current_ma:
+            # 하향 돌파: 이전에는 MA 근처나 위, 지금은 확실히 아래
+            elif (
+                prev_price >= prev_ma * 0.99  # 이전에는 MA 1% 이내 또는 위
+                and current_price < current_ma * (1 - min_breakout_pct)
+            ):  # 지금은 MA 0.5% 이상 아래
+                breakout_strength = ((current_ma - current_price) / current_ma) * 100
                 print(
-                    f"📉 하향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f})"
+                    f"📉 하향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f}, 강도: {breakout_strength:.2f}%)"
                 )
                 return "breakout_down"
 
@@ -154,7 +165,7 @@ class TechnicalIndicatorService:
 
     def detect_rsi_signals(self, current_rsi: float, prev_rsi: float) -> Optional[str]:
         """
-        RSI 신호 감지
+        RSI 신호 감지 (개선된 버전)
 
         Args:
             current_rsi: 현재 RSI 값
@@ -168,23 +179,23 @@ class TechnicalIndicatorService:
             None: 특별한 신호 없음
         """
         try:
-            # 과매수 진입: RSI가 70을 위로 돌파
-            if prev_rsi <= 70 and current_rsi > 70:
+            # 과매수 진입: RSI가 68~72 범위에서 70을 돌파
+            if prev_rsi <= 72 and current_rsi > 68 and current_rsi >= prev_rsi + 2:
                 print(f"🔴 RSI 과매수 진입: {prev_rsi:.1f} → {current_rsi:.1f}")
                 return "overbought"
 
-            # 과매도 진입: RSI가 30을 아래로 이탈
-            elif prev_rsi >= 30 and current_rsi < 30:
+            # 과매도 진입: RSI가 28~32 범위에서 30을 이탈
+            elif prev_rsi >= 28 and current_rsi < 32 and current_rsi <= prev_rsi - 2:
                 print(f"🟢 RSI 과매도 진입: {prev_rsi:.1f} → {current_rsi:.1f}")
                 return "oversold"
 
-            # 상승 모멘텀: RSI가 50을 위로 돌파
-            elif prev_rsi <= 50 and current_rsi > 50:
+            # 상승 모멘텀: RSI가 48~52 범위에서 50을 돌파
+            elif prev_rsi <= 52 and current_rsi > 48 and current_rsi >= prev_rsi + 3:
                 print(f"📈 RSI 상승 모멘텀: {prev_rsi:.1f} → {current_rsi:.1f}")
                 return "bullish"
 
-            # 하락 모멘텀: RSI가 50을 아래로 이탈
-            elif prev_rsi >= 50 and current_rsi < 50:
+            # 하락 모멘텀: RSI가 48~52 범위에서 50을 이탈
+            elif prev_rsi >= 48 and current_rsi < 52 and current_rsi <= prev_rsi - 3:
                 print(f"📉 RSI 하락 모멘텀: {prev_rsi:.1f} → {current_rsi:.1f}")
                 return "bearish"
 

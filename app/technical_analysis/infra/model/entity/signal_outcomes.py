@@ -22,7 +22,16 @@
 - 성공/실패 여부를 다양한 기준으로 판정
 """
 
-from sqlalchemy import Column, BigInteger, DECIMAL, DateTime, Boolean, ForeignKey, Index
+from sqlalchemy import (
+    Column,
+    BigInteger,
+    DECIMAL,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    Index,
+    UniqueConstraint,
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.common.infra.database.config.database_config import Base
@@ -142,11 +151,11 @@ class SignalOutcome(Base):
         예: RSI 과매수 신호 후 최대 -5.2%까지 떨어졌다
         """,
     )
-    
+
     min_return = Column(
         DECIMAL(8, 4),
         nullable=True,
-        comment="최소 수익률 (%) - 추적 기간 중 가장 낮은 수익률"
+        comment="최소 수익률 (%) - 추적 기간 중 가장 낮은 수익률",
     )
 
     # =================================================================
@@ -236,6 +245,8 @@ class SignalOutcome(Base):
     # =================================================================
 
     __table_args__ = (
+        # 🆕 중복 방지: 하나의 신호에 대해서는 하나의 결과만 허용
+        UniqueConstraint("signal_id", name="uq_signal_outcome"),
         # 신호 ID 기준 조회 최적화 (가장 많이 사용)
         Index("idx_signal_id", "signal_id"),
         # 완료 상태별 조회 최적화 (배치 작업에서 사용)

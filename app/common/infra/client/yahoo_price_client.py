@@ -217,6 +217,11 @@ class YahooPriceClient:
         self, symbol: str, period: str = "max"
     ) -> Optional[pd.DataFrame]:
         """일봉 데이터 수집 (기술적 지표 계산용)"""
+
+        # 10년치 데이터를 확실히 받기 위해 기간별로 분할 수집
+        if period == "max":
+            return self._get_historical_daily_data(symbol)
+
         url = f"{self.BASE_URL}{symbol}?range={period}&interval=1d"
         try:
             res = self.session.get(url)
@@ -254,3 +259,87 @@ class YahooPriceClient:
         except Exception as e:
             print(f"❌ {symbol} 일봉 데이터 수집 실패: {e}")
             return None
+
+    def _get_historical_daily_data(self, symbol: str) -> Optional[pd.DataFrame]:
+        """25년치 과거 일봉 데이터를 기간별로 분할 수집 (2000년~현재)"""
+        from datetime import datetime, timedelta
+        import time
+
+        print(f"📊 {symbol} 25년치 과거 데이터 수집 시작 (2000년~현재)...")
+
+        all_dataframes = []
+        current_year = datetime.now().year
+
+        # 🚀 2000년부터 현재까지 연도별로 수집 (25년치!)
+        for year in range(2000, current_year + 1):
+            try:
+                # 각 연도별로 데이터 수집
+                start_timestamp = int(datetime(year, 1, 1).timestamp())
+                end_timestamp = int(datetime(year, 12, 31, 23, 59, 59).timestamp())
+
+                url = f"{self.BASE_URL}{symbol}?period1={start_timestamp}&period2={end_timestamp}&interval=1d"
+
+                print(f"   📅 {year}년 데이터 수집 중...")
+
+                res = self.session.get(url)
+                res.raise_for_status()
+                data = res.json()
+
+                if not data.get("chart") or not data["chart"].get("result"):
+                    print(f"   ⚠️ {year}년 데이터 없음")
+                    continue
+
+                timestamps = data["chart"]["result"][0]["timestamp"]
+                quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+                year_df = pd.DataFrame(
+                    {
+                        "timestamp": timestamps,
+                        "open": quotes["open"],
+                        "high": quotes["high"],
+                        "low": quotes["low"],
+                        "close": quotes["close"],
+                        "volume": quotes["volume"],
+                    }
+                ).dropna()
+
+                if not year_df.empty:
+                    all_dataframes.append(year_df)
+                    print(f"   ✅ {year}년: {len(year_df)}개 데이터 수집")
+                else:
+                    print(f"   ⚠️ {year}년: 데이터 없음")
+
+                # API 호출 제한 방지를 위한 딜레이
+                time.sleep(0.5)
+
+            except Exception as e:
+                print(f"   ❌ {year}년 데이터 수집 실패: {e}")
+                continue
+
+        if not all_dataframes:
+            print(f"❌ {symbol} 모든 연도 데이터 수집 실패")
+            return None
+
+        # 모든 연도 데이터 합치기
+        combined_df = pd.concat(all_dataframes, ignore_index=True)
+
+        # 중복 제거 (같은 날짜 데이터가 있을 수 있음)
+        combined_df = combined_df.drop_duplicates(subset=["timestamp"])
+
+        # 시간순 정렬
+        combined_df = combined_df.sort_values("timestamp")
+
+        # datetime 컬럼 추가
+        combined_df["datetime"] = pd.to_datetime(combined_df["timestamp"], unit="s")
+
+        # 인덱스를 날짜로 설정 (기존 코드와 호환성 위해)
+        combined_df.set_index("datetime", inplace=True)
+
+        # 컬럼명을 대문자로 변경 (기존 코드와 호환성 위해)
+        combined_df.columns = ["timestamp", "Open", "High", "Low", "Close", "Volume"]
+
+        print(
+            f"🎉 {symbol} 전체 데이터 수집 완료: {len(combined_df)}개 (2000~{current_year}) - 25년치!"
+        )
+
+        return combined_df

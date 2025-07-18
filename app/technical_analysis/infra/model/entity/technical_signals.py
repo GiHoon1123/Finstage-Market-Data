@@ -25,6 +25,7 @@ from sqlalchemy import (
     Boolean,
     Text,
     Index,
+    UniqueConstraint,
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -156,7 +157,7 @@ class TechnicalSignal(Base):
         "SignalOutcome",
         back_populates="signal",
         uselist=False,  # 1:1 관계이므로 단일 객체
-        cascade="all, delete-orphan"  # 신호 삭제시 결과도 함께 삭제
+        cascade="all, delete-orphan",  # 신호 삭제시 결과도 함께 삭제
     )
 
     # =================================================================
@@ -164,6 +165,14 @@ class TechnicalSignal(Base):
     # =================================================================
 
     __table_args__ = (
+        # 🆕 중복 방지: 같은 심볼, 신호타입, 시간대, 발생시점의 신호는 1개만 허용
+        UniqueConstraint(
+            "symbol",
+            "signal_type",
+            "timeframe",
+            "triggered_at",
+            name="uq_signal_unique",
+        ),
         # 심볼 + 시간 기준 조회 최적화 (가장 많이 사용되는 쿼리)
         Index("idx_symbol_triggered_at", "symbol", "triggered_at"),
         # 신호 타입별 조회 최적화 (백테스팅에서 많이 사용)
