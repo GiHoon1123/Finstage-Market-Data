@@ -213,7 +213,9 @@ class YahooPriceClient:
             print(f"❌ {symbol} 15분봉 데이터 수집 실패: {e}")
             return None
 
-    def get_daily_data(self, symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
+    def get_daily_data(
+        self, symbol: str, period: str = "max"
+    ) -> Optional[pd.DataFrame]:
         """일봉 데이터 수집 (기술적 지표 계산용)"""
         url = f"{self.BASE_URL}{symbol}?range={period}&interval=1d"
         try:
@@ -240,6 +242,13 @@ class YahooPriceClient:
                 return None
 
             df["datetime"] = pd.to_datetime(df["timestamp"], unit="s")
+
+            # 인덱스를 날짜로 설정 (기존 코드와 호환성 위해)
+            df.set_index("datetime", inplace=True)
+
+            # 컬럼명을 대문자로 변경 (기존 코드와 호환성 위해)
+            df.columns = ["timestamp", "Open", "High", "Low", "Close", "Volume"]
+
             print(f"📊 {symbol} 일봉 데이터 수집: {len(df)}개")
             return df
         except Exception as e:

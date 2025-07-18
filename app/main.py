@@ -7,10 +7,16 @@ from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router
 from app.message_notification.web.route.message_router import router as message_router
-from app.technical_analysis.web.route.pattern_analysis_router import router as pattern_analysis_router
-from app.technical_analysis.web.route.signal_analysis_router import router as signal_analysis_router
+from app.technical_analysis.web.route.pattern_analysis_router import (
+    router as pattern_analysis_router,
+)
+from app.technical_analysis.web.route.signal_analysis_router import (
+    router as signal_analysis_router,
+)
 from app.technical_analysis.web.route.utility_router import router as utility_router
-from app.technical_analysis.web.route.advanced_pattern_router import router as advanced_pattern_router
+from app.technical_analysis.web.route.advanced_pattern_router import (
+    router as advanced_pattern_router,
+)
 
 
 import os
