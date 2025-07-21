@@ -72,31 +72,65 @@ def run_yahoo_stock_news():
 
 def run_high_price_update_job():
     print("📈 상장 후 최고가 갱신 시작")
-    service = PriceHighRecordService()
-    for symbol in SYMBOL_PRICE_MAP:
-        time.sleep(5.0)
-        service.update_all_time_high(symbol)
+    from app.common.utils.parallel_executor import (
+        ParallelExecutor,
+        measure_execution_time,
+    )
 
-    print("✅ 최고가 갱신 완료")
+    @measure_execution_time
+    def process_symbol(symbol):
+        service = PriceHighRecordService()
+        return service.update_all_time_high(symbol)
+
+    executor = ParallelExecutor(max_workers=5)
+    results = executor.run_symbol_tasks_parallel(
+        process_symbol, list(SYMBOL_PRICE_MAP), delay=1.0
+    )
+
+    success_count = sum(1 for r in results if r is not None)
+    print(f"✅ 최고가 갱신 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
 
 
 def run_previous_close_snapshot_job():
     print("🕓 전일 종가 저장 시작")
-    service = PriceSnapshotService()
-    for symbol in SYMBOL_PRICE_MAP:
-        time.sleep(5.0)
-        service.save_previous_close_if_needed(symbol)
+    from app.common.utils.parallel_executor import (
+        ParallelExecutor,
+        measure_execution_time,
+    )
 
-    print("✅ 전일 종가 저장 완료")
+    @measure_execution_time
+    def process_symbol(symbol):
+        service = PriceSnapshotService()
+        return service.save_previous_close_if_needed(symbol)
+
+    executor = ParallelExecutor(max_workers=5)
+    results = executor.run_symbol_tasks_parallel(
+        process_symbol, list(SYMBOL_PRICE_MAP), delay=1.0
+    )
+
+    success_count = sum(1 for r in results if r is not None)
+    print(f"✅ 전일 종가 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
 
 
 def run_previous_high_snapshot_job():
     print("🔺 전일 고점 저장 시작")
-    service = PriceSnapshotService()
-    for symbol in SYMBOL_PRICE_MAP:
-        time.sleep(5.0)
-        service.save_previous_high_if_needed(symbol)
-    print("✅ 전일 고점 저장 완료")
+    from app.common.utils.parallel_executor import (
+        ParallelExecutor,
+        measure_execution_time,
+    )
+
+    @measure_execution_time
+    def process_symbol(symbol):
+        service = PriceSnapshotService()
+        return service.save_previous_high_if_needed(symbol)
+
+    executor = ParallelExecutor(max_workers=5)
+    results = executor.run_symbol_tasks_parallel(
+        process_symbol, list(SYMBOL_PRICE_MAP), delay=1.0
+    )
+
+    success_count = sum(1 for r in results if r is not None)
+    print(f"✅ 전일 고점 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
 
 
 def run_previous_low_snapshot_job():

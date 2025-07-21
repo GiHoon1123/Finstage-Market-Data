@@ -61,6 +61,15 @@ app.include_router(
     tags=["Advanced Pattern Analysis"],
 )
 
+# 비동기 API 라우터 등록
+from app.technical_analysis.web.route.async_api_router import router as async_api_router
+
+app.include_router(
+    async_api_router,
+    prefix="/api/v2",
+    tags=["Async API"],
+)
+
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
@@ -68,4 +77,20 @@ Base.metadata.create_all(bind=engine)
 
 @app.on_event("startup")
 def startup_event():
-    start_scheduler()  # 서버 시작 시 스케줄러 동작 시작
+    # 병렬 처리 스케줄러 사용
+    from app.scheduler.parallel_scheduler import start_parallel_scheduler
+
+    start_parallel_scheduler()  # 서버 시작 시 병렬 스케줄러 동작 시작
+
+    # 성능 모니터링 시스템 시작
+    from app.common.utils.performance_monitor import start_monitoring
+
+    start_monitoring()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    # 성능 모니터링 시스템 종료
+    from app.common.utils.performance_monitor import stop_monitoring
+
+    stop_monitoring()
