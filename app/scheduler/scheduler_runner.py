@@ -706,22 +706,22 @@ def start_scheduler():
     # =============================================================================
     # 기존 작업들 (주석처리됨)
     # =============================================================================
-    # scheduler.add_job(run_investing_economic_news, "interval", minutes=30)
-    # scheduler.add_job(run_investing_market_news, "interval", minutes=30)
-    # scheduler.add_job(run_yahoo_futures_news, "interval", minutes=10)
-    # scheduler.add_job(run_yahoo_index_news, "interval", minutes=30)
-    # scheduler.add_job(run_yahoo_stock_news, "interval", minutes=15)
-    # scheduler.add_job(run_high_price_update_job, "interval", hours=1)
-    # scheduler.add_job(run_previous_close_snapshot_job, "interval", hours=1)
-    # scheduler.add_job(run_previous_high_snapshot_job, "interval", hours=1)
-    # scheduler.add_job(run_previous_low_snapshot_job, "interval", hours=1)
+    scheduler.add_job(run_investing_economic_news, "interval", minutes=30)
+    scheduler.add_job(run_investing_market_news, "interval", minutes=30)
+    scheduler.add_job(run_yahoo_futures_news, "interval", minutes=10)
+    scheduler.add_job(run_yahoo_index_news, "interval", minutes=30)
+    scheduler.add_job(run_yahoo_stock_news, "interval", minutes=15)
+    scheduler.add_job(run_high_price_update_job, "interval", hours=1)
+    scheduler.add_job(run_previous_close_snapshot_job, "interval", hours=1)
+    scheduler.add_job(run_previous_high_snapshot_job, "interval", hours=1)
+    scheduler.add_job(run_previous_low_snapshot_job, "interval", hours=1)
 
     # =============================================================================
     # 현재 활성화된 작업들
     # =============================================================================
 
     # 실시간 가격 모니터링 (기존)
-    # scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
+    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
 
     # =============================================================================
     # 🆕 주요 지수 기술적 지표 모니터링 작업들
@@ -732,7 +732,7 @@ def start_scheduler():
     # - S&P 500 지수 (^GSPC): 전체 시장 분석
     # - 장기 투자 관점에서 가장 중요한 신호들
     # - 1시간마다 실행 (중요한 신호라서 자주 체크)
-    # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)
+    scheduler.add_job(run_daily_index_analysis, "interval", hours=1)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트용)
@@ -758,7 +758,7 @@ def start_scheduler():
 
     # 최근 신호들 결과 추적 초기화 (6시간마다)
     # - 아직 추적이 시작되지 않은 신호들을 찾아서 추적 시작
-    # scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
+    scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트 및 초기화)
@@ -776,8 +776,8 @@ def start_scheduler():
     # print("🚀 데이터 상태 확인부터 시작...")
     # test_data_status_check()
 
-    print("\n🚀 전체 과거 데이터 분석 프로세스 실행...")
-    test_run_all_historical_analysis()
+    # print("\n🚀 전체 과거 데이터 분석 프로세스 실행...")
+    # test_run_all_historical_analysis()
 
     # 개별 단계별 실행 (필요시 주석 해제)
     # print("📊 1단계: 10년치 과거 데이터 수집...")
