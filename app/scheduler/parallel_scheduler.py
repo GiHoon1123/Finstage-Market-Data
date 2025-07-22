@@ -17,7 +17,7 @@ from app.common.constants.rss_feeds import (
 
 
 # 병렬 실행기 인스턴스 생성 (max_workers 감소로 DB 연결 부하 감소)
-executor = ParallelExecutor(max_workers=5)  # 10 → 5로 감소
+executor = ParallelExecutor(max_workers=2)  # 3 → 2로 더 감소
 
 
 @measure_execution_time
@@ -146,13 +146,22 @@ def run_high_price_update_job_parallel():
     print("📈 상장 후 최고가 갱신 시작 (병렬)")
 
     def update_high_price(symbol):
-        service = PriceHighRecordService()
-        result = service.update_all_time_high(symbol)
-        return result
+        try:
+            service = PriceHighRecordService()
+            result = service.update_all_time_high(symbol)
+            # 서비스 사용 후 세션 정리
+            if hasattr(service, "__del__"):
+                service.__del__()
+            return result
+        except Exception as e:
+            print(f"❌ {symbol} 고점 갱신 실패: {e}")
+            return None
 
     # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
     results = executor.run_symbol_tasks_parallel(
-        update_high_price, list(SYMBOL_PRICE_MAP.keys()), delay=0.5
+        update_high_price,
+        list(SYMBOL_PRICE_MAP.keys()),
+        delay=2.0,  # 0.5 → 2.0으로 증가
     )
 
     success_count = sum(1 for r in results if r is not None)
@@ -274,22 +283,34 @@ def start_parallel_scheduler():
 
     # 가격 관련 작업 (병렬) - 시간차 실행으로 부하 분산
     scheduler.add_job(
-        run_high_price_update_job_parallel, "interval", hours=1, minutes=0
+        run_high_price_update_job_parallel,
+        "interval",
+        hours=2,
+        minutes=0,  # 1시간 → 2시간
     )
     scheduler.add_job(
-        run_previous_close_snapshot_job_parallel, "interval", hours=1, minutes=15
+        run_previous_close_snapshot_job_parallel,
+        "interval",
+        hours=2,
+        minutes=30,  # 15분 → 30분
     )
     scheduler.add_job(
-        run_previous_high_snapshot_job_parallel, "interval", hours=1, minutes=30
+        run_previous_high_snapshot_job_parallel,
+        "interval",
+        hours=3,
+        minutes=0,  # 1시간30분 → 3시간
     )
     scheduler.add_job(
-        run_previous_low_snapshot_job_parallel, "interval", hours=1, minutes=45
+        run_previous_low_snapshot_job_parallel,
+        "interval",
+        hours=3,
+        minutes=30,  # 1시간45분 → 3시간30분
     )
 
     # 실시간 모니터링 (병렬) - 간격 증가로 부하 감소
     scheduler.add_job(
-        run_realtime_price_monitor_job_parallel, "interval", minutes=2
-    )  # 1 → 2
+        run_realtime_price_monitor_job_parallel, "interval", minutes=10
+    )  # 5 → 10분으로 더 증가
 
     # 기존 기술적 지표 모니터링 작업들은 그대로 유지
     from app.scheduler.scheduler_runner import (

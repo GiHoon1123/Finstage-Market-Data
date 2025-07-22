@@ -63,18 +63,21 @@ class ParallelExecutor:
             각 심볼별 작업 결과
         """
         # 배치 크기 제한 (DB 연결 부하 감소)
-        batch_size = max(1, min(3, self.max_workers // 2))  # 최대 3개로 제한
+        batch_size = 1  # 배치 크기를 1로 고정 (순차 처리)
         results = []
 
-        for i in range(0, len(symbols), batch_size):
-            batch_symbols = symbols[i : i + batch_size]
-            tasks = [(func, symbol) for symbol in batch_symbols]
-            batch_results = self.run_parallel(tasks)
-            results.extend(batch_results)
+        for i, symbol in enumerate(symbols):
+            print(f"🔄 처리 중: {symbol} ({i+1}/{len(symbols)})")
+            try:
+                result = func(symbol)
+                results.append(result)
+            except Exception as e:
+                print(f"❌ {symbol} 처리 실패: {e}")
+                results.append(None)
 
-            # 배치 간 지연 추가 (DB 연결 풀 회복 시간)
-            if i + batch_size < len(symbols):
-                sleep_time = delay if delay > 0 else 1.0  # 최소 1초 지연
+            # 각 작업 간 지연 추가 (DB 연결 풀 회복 시간)
+            if i < len(symbols) - 1:  # 마지막이 아닌 경우
+                sleep_time = delay if delay > 0 else 5.0  # 최소 5초 지연
                 time.sleep(sleep_time)
 
         return results

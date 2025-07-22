@@ -1,4 +1,6 @@
-from app.market_price.infra.model.repository.price_snapshot_repository import PriceSnapshotRepository
+from app.market_price.infra.model.repository.price_snapshot_repository import (
+    PriceSnapshotRepository,
+)
 from app.market_price.infra.model.entity.price_snapshots import PriceSnapshot
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.common.infra.database.config.database_config import SessionLocal
@@ -6,9 +8,21 @@ from app.common.infra.database.config.database_config import SessionLocal
 
 class PriceSnapshotService:
     def __init__(self):
-        self.session = SessionLocal()
-        self.repository = PriceSnapshotRepository(self.session)
+        self.session = None
+        self.repository = None
         self.client = YahooPriceClient()
+
+    def _get_session_and_repo(self):
+        """세션과 리포지토리 지연 초기화"""
+        if not self.session:
+            self.session = SessionLocal()
+            self.repository = PriceSnapshotRepository(self.session)
+        return self.session, self.repository
+
+    def __del__(self):
+        """소멸자에서 세션 정리"""
+        if self.session:
+            self.session.close()
 
     def save_previous_close_if_needed(self, symbol: str):
         try:
@@ -38,7 +52,7 @@ class PriceSnapshotService:
             print(f"❌ {symbol} 종가 저장 실패: {e}")
         finally:
             self.session.close()
-    
+
     def save_previous_high_if_needed(self, symbol: str):
         try:
             high_price, snapshot_at = self.client.get_previous_high(symbol)

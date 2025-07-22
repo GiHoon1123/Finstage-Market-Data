@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
-from app.market_price.infra.model.repository.price_alert_log_repository import PriceAlertLogRepository
+from app.market_price.infra.model.repository.price_alert_log_repository import (
+    PriceAlertLogRepository,
+)
 from app.market_price.infra.model.entity.price_alert_log import PriceAlertLog
 from app.common.infra.database.config.database_config import SessionLocal
 
@@ -7,10 +9,24 @@ from app.common.infra.database.config.database_config import SessionLocal
 class PriceAlertLogService:
     def __init__(self):
         # DB 세션 생성 및 레포지토리 주입
-        self.session = SessionLocal()
-        self.repository = PriceAlertLogRepository(self.session)
+        self.session = None
+        self.repository = None
 
-    def exists_recent_alert(self, symbol: str, alert_type: str, base_type: str, min_minutes_gap: int = 60) -> bool:
+    def _get_session_and_repo(self):
+        """세션과 리포지토리 지연 초기화"""
+        if not self.session:
+            self.session = SessionLocal()
+            self.repository = PriceAlertLogRepository(self.session)
+        return self.session, self.repository
+
+    def __del__(self):
+        """소멸자에서 세션 정리"""
+        if self.session:
+            self.session.close()
+
+    def exists_recent_alert(
+        self, symbol: str, alert_type: str, base_type: str, min_minutes_gap: int = 60
+    ) -> bool:
         """
         일정 시간 내에 같은 종류의 알림이 이미 발송됐는지 확인 (중복 방지용)
         """
@@ -31,7 +47,9 @@ class PriceAlertLogService:
         if alert:
             time_diff = datetime.utcnow() - alert.triggered_at
             remaining = timedelta(minutes=min_minutes_gap) - time_diff
-            print(f"⚠️ 최근 알림 있음 → {alert.triggered_at} (남은 차단 시간: {remaining})")
+            print(
+                f"⚠️ 최근 알림 있음 → {alert.triggered_at} (남은 차단 시간: {remaining})"
+            )
             return True
         else:
             print(f"✅ 최근 알림 없음 (기준 시각: {threshold_time})")
@@ -47,7 +65,7 @@ class PriceAlertLogService:
         threshold_percent: float,
         actual_percent: float,
         base_time: datetime,
-        triggered_at: datetime
+        triggered_at: datetime,
     ):
         """
         새로운 알림 로그 저장
@@ -73,7 +91,7 @@ class PriceAlertLogService:
                 threshold_percent=threshold_percent,
                 actual_percent=actual_percent,
                 base_time=base_time,
-                triggered_at=triggered_at
+                triggered_at=triggered_at,
             )
 
             # 저장 및 커밋

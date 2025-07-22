@@ -1,4 +1,6 @@
-from app.market_price.infra.model.repository.price_high_record_repository import PriceHighRecordRepository
+from app.market_price.infra.model.repository.price_high_record_repository import (
+    PriceHighRecordRepository,
+)
 from app.market_price.infra.model.entity.price_high_records import PriceHighRecord
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.common.infra.database.config.database_config import SessionLocal
@@ -6,9 +8,21 @@ from app.common.infra.database.config.database_config import SessionLocal
 
 class PriceHighRecordService:
     def __init__(self):
-        self.session = SessionLocal()
-        self.repository = PriceHighRecordRepository(self.session)
+        self.session = None
+        self.repository = None
         self.client = YahooPriceClient()
+
+    def _get_session_and_repo(self):
+        """세션과 리포지토리 지연 초기화"""
+        if not self.session:
+            self.session = SessionLocal()
+            self.repository = PriceHighRecordRepository(self.session)
+        return self.session, self.repository
+
+    def __del__(self):
+        """소멸자에서 세션 정리"""
+        if self.session:
+            self.session.close()
 
     def update_all_time_high(self, symbol: str):
         try:
@@ -22,7 +36,7 @@ class PriceHighRecordService:
                     symbol=symbol,
                     source=source,
                     price=current_price,
-                    recorded_at=recorded_at
+                    recorded_at=recorded_at,
                 )
                 self.repository.save(new_high)
                 self.session.commit()

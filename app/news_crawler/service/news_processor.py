@@ -4,15 +4,30 @@ from app.common.utils.telegram_notifier import send_news_telegram_message
 from app.news_crawler.infra.model.entity.content import Content
 from app.news_crawler.infra.model.entity.content_translations import ContentTranslation
 from app.news_crawler.infra.model.repository.content_repository import ContentRepository
-from app.news_crawler.infra.model.repository.content_translation_repository import ContentTranslationRepository
+from app.news_crawler.infra.model.repository.content_translation_repository import (
+    ContentTranslationRepository,
+)
 
 
 class NewsProcessor:
     def __init__(self, news_items: list[dict]):
         self.news_items = news_items
-        self.session = SessionLocal()
-        self.content_repo = ContentRepository(self.session)
-        self.translation_repo = ContentTranslationRepository(self.session)
+        self.session = None
+        self.content_repo = None
+        self.translation_repo = None
+
+    def _get_session_and_repos(self):
+        """세션과 리포지토리 지연 초기화"""
+        if not self.session:
+            self.session = SessionLocal()
+            self.content_repo = ContentRepository(self.session)
+            self.translation_repo = ContentTranslationRepository(self.session)
+        return self.session, self.content_repo, self.translation_repo
+
+    def __del__(self):
+        """소멸자에서 세션 정리"""
+        if self.session:
+            self.session.close()
         self.telegram_enabled = True
 
     def run(self):
@@ -22,8 +37,8 @@ class NewsProcessor:
                     continue
 
                 content = self._save_content(item)
-                title_ko, summary_ko, symbol = self._save_translation(content)  
-                self._send_notification(content, title_ko, summary_ko, symbol)  
+                title_ko, summary_ko, symbol = self._save_translation(content)
+                self._send_notification(content, title_ko, summary_ko, symbol)
 
             self.session.commit()
         except Exception as e:
@@ -57,20 +72,22 @@ class NewsProcessor:
     def _save_translation(self, content: Content) -> tuple[str, str | None]:  # ✅ 수정
         title_ko = translate_to_korean(content.title)
         summary_ko = translate_to_korean(content.summary) if content.summary else None
-        symbol = content.symbol 
+        symbol = content.symbol
         translation = ContentTranslation(
             content_id=content.id,
             language="ko",
             title_translated=title_ko,
             summary_translated=summary_ko,
             translator="google",
-            published_at=content.published_at
+            published_at=content.published_at,
         )
         self.translation_repo.save(translation)
         print(f"✅ 저장 완료: {content.title} → {title_ko}")
         return title_ko, summary_ko, symbol  # ✅ 번역 결과 반환
 
-    def _send_notification(self, content: Content, title_ko: str, summary_ko: str, symbol: str):
+    def _send_notification(
+        self, content: Content, title_ko: str, summary_ko: str, symbol: str
+    ):
         if not self.telegram_enabled:
             return
 
@@ -80,7 +97,7 @@ class NewsProcessor:
                 summary=summary_ko,
                 url=content.url,
                 published_at=content.published_at,
-                symbol=symbol
+                symbol=symbol,
             )
         except Exception as e:
             print(f"❌ 텔레그램 전송 실패: {e}")
