@@ -719,3 +719,158 @@ class SignalOutcomeRepository:
             query = query.filter(TechnicalSignal.symbol == symbol)
 
         return query.order_by(desc(SignalOutcome.created_at)).limit(limit).all()
+
+    # =================================================================
+    # 통계 및 카운트 메서드들 (향상된 결과 추적 서비스용)
+    # =================================================================
+
+    def count_all_outcomes(self) -> int:
+        """
+        전체 결과 레코드 개수 조회
+
+        🔢 이 메서드가 하는 일:
+        - 데이터베이스에 저장된 모든 결과 레코드의 개수를 센다
+        - 전체 추적 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 전체 결과 레코드 개수
+        """
+        try:
+            count = self.session.query(SignalOutcome).count()
+            return count
+        except Exception as e:
+            print(f"❌ 전체 결과 개수 조회 실패: {e}")
+            return 0
+
+    def count_completed_outcomes(self) -> int:
+        """
+        완료된 결과 레코드 개수 조회
+
+        🏁 이 메서드가 하는 일:
+        - 추적이 완료된 결과 레코드의 개수를 센다
+        - is_complete = True인 레코드들을 센다
+        - 완료율 계산에 사용된다
+
+        Returns:
+            int: 완료된 결과 레코드 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.is_complete == True)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 완료된 결과 개수 조회 실패: {e}")
+            return 0
+
+    def count_outcomes_with_price_1h(self) -> int:
+        """
+        1시간 후 가격이 기록된 결과 개수 조회
+
+        ⏰ 이 메서드가 하는 일:
+        - price_1h_after 필드에 값이 있는 레코드 개수를 센다
+        - 1시간 후 데이터 수집 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 1시간 후 가격이 기록된 결과 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.price_1h_after != None)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 1시간 후 가격 개수 조회 실패: {e}")
+            return 0
+
+    def count_outcomes_with_price_4h(self) -> int:
+        """
+        4시간 후 가격이 기록된 결과 개수 조회
+
+        ⏰ 이 메서드가 하는 일:
+        - price_4h_after 필드에 값이 있는 레코드 개수를 센다
+        - 4시간 후 데이터 수집 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 4시간 후 가격이 기록된 결과 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.price_4h_after != None)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 4시간 후 가격 개수 조회 실패: {e}")
+            return 0
+
+    def count_outcomes_with_price_1d(self) -> int:
+        """
+        1일 후 가격이 기록된 결과 개수 조회
+
+        ⏰ 이 메서드가 하는 일:
+        - price_1d_after 필드에 값이 있는 레코드 개수를 센다
+        - 1일 후 데이터 수집 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 1일 후 가격이 기록된 결과 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.price_1d_after != None)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 1일 후 가격 개수 조회 실패: {e}")
+            return 0
+
+    def count_outcomes_with_price_1w(self) -> int:
+        """
+        1주일 후 가격이 기록된 결과 개수 조회
+
+        ⏰ 이 메서드가 하는 일:
+        - price_1w_after 필드에 값이 있는 레코드 개수를 센다
+        - 1주일 후 데이터 수집 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 1주일 후 가격이 기록된 결과 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.price_1w_after != None)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 1주일 후 가격 개수 조회 실패: {e}")
+            return 0
+
+    def count_outcomes_with_price_1m(self) -> int:
+        """
+        1개월 후 가격이 기록된 결과 개수 조회
+
+        ⏰ 이 메서드가 하는 일:
+        - price_1m_after 필드에 값이 있는 레코드 개수를 센다
+        - 1개월 후 데이터 수집 현황을 파악하는데 사용된다
+
+        Returns:
+            int: 1개월 후 가격이 기록된 결과 개수
+        """
+        try:
+            count = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.price_1m_after != None)
+                .count()
+            )
+            return count
+        except Exception as e:
+            print(f"❌ 1개월 후 가격 개수 조회 실패: {e}")
+            return 0
