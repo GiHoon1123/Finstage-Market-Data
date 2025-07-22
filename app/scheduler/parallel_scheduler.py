@@ -16,8 +16,8 @@ from app.common.constants.rss_feeds import (
 )
 
 
-# 병렬 실행기 인스턴스 생성
-executor = ParallelExecutor(max_workers=10)
+# 병렬 실행기 인스턴스 생성 (max_workers 감소로 DB 연결 부하 감소)
+executor = ParallelExecutor(max_workers=5)  # 10 → 5로 감소
 
 
 @measure_execution_time
@@ -226,17 +226,27 @@ def run_previous_low_snapshot_job_parallel():
 def run_realtime_price_monitor_job_parallel():
     """실시간 가격 모니터링 (병렬)"""
     from app.market_price.service.price_monitor_service import PriceMonitorService
+    from app.common.utils.db_session_manager import session_scope
 
     print("📡 실시간 가격 모니터링 시작 (병렬)")
 
     def check_price(symbol):
-        service = PriceMonitorService()
-        result = service.check_price_against_baseline(symbol)
-        return result
+        try:
+            # 세션 컨텍스트 매니저 사용
+            with session_scope() as session:
+                service = PriceMonitorService()
+                # 세션 명시적 전달 (가능한 경우)
+                if hasattr(service, "set_session"):
+                    service.set_session(session)
+                result = service.check_price_against_baseline(symbol)
+                return result
+        except Exception as e:
+            print(f"❌ {symbol} 가격 모니터링 실패: {e}")
+            return None
 
-    # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
+    # 병렬 실행 (배치 크기 제한 및 지연 시간 증가)
     results = executor.run_symbol_tasks_parallel(
-        check_price, list(SYMBOL_PRICE_MAP.keys()), delay=0.5
+        check_price, list(SYMBOL_PRICE_MAP.keys()), delay=1.0  # 0.5 → 1.0으로 증가
     )
 
     success_count = sum(1 for r in results if r is not None)
@@ -249,21 +259,37 @@ def start_parallel_scheduler():
 
     print("🔄 병렬 처리 APScheduler 시작됨")
 
-    # 뉴스 크롤링 작업 (병렬)
-    scheduler.add_job(run_investing_economic_news_parallel, "interval", minutes=30)
-    scheduler.add_job(run_investing_market_news_parallel, "interval", minutes=30)
-    scheduler.add_job(run_yahoo_futures_news_parallel, "interval", minutes=10)
-    scheduler.add_job(run_yahoo_index_news_parallel, "interval", minutes=30)
-    scheduler.add_job(run_yahoo_stock_news_parallel, "interval", minutes=15)
+    # 뉴스 크롤링 작업 (병렬) - 간격 증가로 부하 분산
+    scheduler.add_job(
+        run_investing_economic_news_parallel, "interval", minutes=45
+    )  # 30 → 45
+    scheduler.add_job(
+        run_investing_market_news_parallel, "interval", minutes=45
+    )  # 30 → 45
+    scheduler.add_job(
+        run_yahoo_futures_news_parallel, "interval", minutes=15
+    )  # 10 → 15
+    scheduler.add_job(run_yahoo_index_news_parallel, "interval", minutes=40)  # 30 → 40
+    scheduler.add_job(run_yahoo_stock_news_parallel, "interval", minutes=20)  # 15 → 20
 
-    # 가격 관련 작업 (병렬)
-    scheduler.add_job(run_high_price_update_job_parallel, "interval", hours=1)
-    scheduler.add_job(run_previous_close_snapshot_job_parallel, "interval", hours=1)
-    scheduler.add_job(run_previous_high_snapshot_job_parallel, "interval", hours=1)
-    scheduler.add_job(run_previous_low_snapshot_job_parallel, "interval", hours=1)
+    # 가격 관련 작업 (병렬) - 시간차 실행으로 부하 분산
+    scheduler.add_job(
+        run_high_price_update_job_parallel, "interval", hours=1, minutes=0
+    )
+    scheduler.add_job(
+        run_previous_close_snapshot_job_parallel, "interval", hours=1, minutes=15
+    )
+    scheduler.add_job(
+        run_previous_high_snapshot_job_parallel, "interval", hours=1, minutes=30
+    )
+    scheduler.add_job(
+        run_previous_low_snapshot_job_parallel, "interval", hours=1, minutes=45
+    )
 
-    # 실시간 모니터링 (병렬)
-    scheduler.add_job(run_realtime_price_monitor_job_parallel, "interval", minutes=1)
+    # 실시간 모니터링 (병렬) - 간격 증가로 부하 감소
+    scheduler.add_job(
+        run_realtime_price_monitor_job_parallel, "interval", minutes=2
+    )  # 1 → 2
 
     # 기존 기술적 지표 모니터링 작업들은 그대로 유지
     from app.scheduler.scheduler_runner import (

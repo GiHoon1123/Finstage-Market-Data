@@ -11,7 +11,7 @@ from functools import wraps
 class ParallelExecutor:
     """병렬 작업 실행을 위한 클래스"""
 
-    def __init__(self, max_workers: int = 10):
+    def __init__(self, max_workers: int = 5):  # 10 → 5로 감소 (DB 연결 부하 감소)
         self.max_workers = max_workers
 
     def run_parallel(self, tasks: List[tuple], timeout: int = 300) -> List[Any]:
@@ -62,25 +62,22 @@ class ParallelExecutor:
         Returns:
             각 심볼별 작업 결과
         """
-        if delay > 0:
-            # API 제한이 있는 경우 배치 처리
-            batch_size = max(1, self.max_workers // 2)
-            results = []
+        # 배치 크기 제한 (DB 연결 부하 감소)
+        batch_size = max(1, min(3, self.max_workers // 2))  # 최대 3개로 제한
+        results = []
 
-            for i in range(0, len(symbols), batch_size):
-                batch_symbols = symbols[i : i + batch_size]
-                tasks = [(func, symbol) for symbol in batch_symbols]
-                batch_results = self.run_parallel(tasks)
-                results.extend(batch_results)
+        for i in range(0, len(symbols), batch_size):
+            batch_symbols = symbols[i : i + batch_size]
+            tasks = [(func, symbol) for symbol in batch_symbols]
+            batch_results = self.run_parallel(tasks)
+            results.extend(batch_results)
 
-                if i + batch_size < len(symbols):
-                    time.sleep(delay)
+            # 배치 간 지연 추가 (DB 연결 풀 회복 시간)
+            if i + batch_size < len(symbols):
+                sleep_time = delay if delay > 0 else 1.0  # 최소 1초 지연
+                time.sleep(sleep_time)
 
-            return results
-        else:
-            # API 제한이 없는 경우 전체 병렬 처리
-            tasks = [(func, symbol) for symbol in symbols]
-            return self.run_parallel(tasks)
+        return results
 
 
 def retry_on_failure(
