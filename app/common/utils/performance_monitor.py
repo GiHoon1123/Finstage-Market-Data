@@ -6,7 +6,6 @@
 
 import time
 import logging
-import psutil
 import threading
 import functools
 from typing import Dict, List, Any, Optional, Callable
@@ -14,6 +13,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from contextlib import contextmanager
 
+# psutil 패키지 import - 이미 설치되어 있음
+import psutil
 
 # 로거 설정
 logger = logging.getLogger("performance_monitor")

@@ -514,3 +514,53 @@ def measure_time(name: str = None):
 5. **CI/CD 파이프라인에 성능 테스트 통합**
    - 자동화된 성능 회귀 테스트
    - 성능 기준 설정 및 모니터링
+
+## 설치 및 사용 방법
+
+### 필수 패키지 설치
+
+```bash
+pip install psutil aiohttp redis
+```
+
+### 성능 모니터링 사용
+
+```python
+from app.common.utils.performance_monitor import measure_time
+
+@measure_time("API 요청 처리")
+def process_request(data):
+    # 함수 실행 시간이 자동으로 측정됨
+    ...
+```
+
+### 병렬 처리 사용
+
+```python
+from app.common.utils.parallel_executor import ParallelExecutor
+
+executor = ParallelExecutor(max_workers=5)
+results = executor.run_symbol_tasks_parallel(process_symbol, symbols, delay=0.5)
+```
+
+### 비동기 API 호출
+
+```python
+from app.common.utils.async_api_client import AsyncApiClient
+
+async with AsyncApiClient() as client:
+    results = await client.fetch_multiple(urls, params, concurrency=5)
+```
+
+### 캐시 관리
+
+```python
+from app.common.utils.cache_manager import default_cache_manager
+
+# 캐시에서 값 조회 또는 생성
+result = default_cache_manager.get_or_set(
+    key="data:key",
+    value_func=lambda: expensive_calculation(),
+    ttl=3600
+)
+```

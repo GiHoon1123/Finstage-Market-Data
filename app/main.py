@@ -86,6 +86,24 @@ def startup_event():
     from app.common.utils.performance_monitor import start_monitoring
 
     start_monitoring()
+    print("✅ 성능 모니터링 시스템 시작됨")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    # 성능 모니터링 시스템 종료
+    try:
+        from app.common.utils.performance_monitor import stop_monitoring
+
+        stop_monitoring()
+        print("✅ 성능 모니터링 시스템 종료됨")
+    except ImportError:
+        pass
+
+    # 성능 모니터링 시스템 시작
+    from app.common.utils.performance_monitor import start_monitoring
+
+    start_monitoring()
 
 
 @app.on_event("shutdown")
@@ -94,3 +112,12 @@ def shutdown_event():
     from app.common.utils.performance_monitor import stop_monitoring
 
     stop_monitoring()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    # 성능 모니터링 시스템 종료
+    from app.common.utils.performance_monitor import stop_monitoring
+
+    stop_monitoring()
+    print("✅ 성능 모니터링 시스템 종료됨")
