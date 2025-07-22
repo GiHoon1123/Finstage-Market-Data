@@ -1,16 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-
-
-# MySQL 접속 설정
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "1234"
-MYSQL_HOST = "localhost"
-MYSQL_PORT = "3306"
-MYSQL_DB = "finstage_market_data"
-
-# SQLAlchemy용 접속 URL 생성
-MYSQL_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}"
+from app.config import MYSQL_URL
 
 # SQLAlchemy 엔진 생성 - 연결 풀링 최적화 (QueuePool limit 오류 해결)
 # 성능 개선 Phase 1: 데이터베이스 연결 풀링 최적화
