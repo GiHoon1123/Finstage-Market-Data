@@ -30,30 +30,39 @@ class PriceAlertLogService:
         """
         일정 시간 내에 같은 종류의 알림이 이미 발송됐는지 확인 (중복 방지용)
         """
-        threshold_time = datetime.utcnow() - timedelta(minutes=min_minutes_gap)
+        session = None
+        try:
+            session, repository = self._get_session_and_repo()
+            threshold_time = datetime.utcnow() - timedelta(minutes=min_minutes_gap)
 
-        alert = (
-            self.session.query(PriceAlertLog)
-            .filter(
-                PriceAlertLog.symbol == symbol,
-                PriceAlertLog.alert_type == alert_type,
-                PriceAlertLog.base_type == base_type,
-                PriceAlertLog.triggered_at >= threshold_time,
+            alert = (
+                session.query(PriceAlertLog)
+                .filter(
+                    PriceAlertLog.symbol == symbol,
+                    PriceAlertLog.alert_type == alert_type,
+                    PriceAlertLog.base_type == base_type,
+                    PriceAlertLog.triggered_at >= threshold_time,
+                )
+                .order_by(PriceAlertLog.triggered_at.desc())
+                .first()
             )
-            .order_by(PriceAlertLog.triggered_at.desc())
-            .first()
-        )
 
-        if alert:
-            time_diff = datetime.utcnow() - alert.triggered_at
-            remaining = timedelta(minutes=min_minutes_gap) - time_diff
-            print(
-                f"⚠️ 최근 알림 있음 → {alert.triggered_at} (남은 차단 시간: {remaining})"
-            )
-            return True
-        else:
-            print(f"✅ 최근 알림 없음 (기준 시각: {threshold_time})")
+            if alert:
+                time_diff = datetime.utcnow() - alert.triggered_at
+                remaining = timedelta(minutes=min_minutes_gap) - time_diff
+                print(
+                    f"⚠️ 최근 알림 있음 → {alert.triggered_at} (남은 차단 시간: {remaining})"
+                )
+                return True
+            else:
+                print(f"✅ 최근 알림 없음 (기준 시각: {threshold_time})")
+                return False
+        except Exception as e:
+            print(f"❌ 알림 조회 실패: {e}")
             return False
+        finally:
+            if session:
+                session.close()
 
     def save_alert(
         self,
@@ -80,7 +89,10 @@ class PriceAlertLogService:
         :param base_time: 기준 가격의 기록 시점
         :param triggered_at: 알림 발생 시각
         """
+        session = None
         try:
+            session, repository = self._get_session_and_repo()
+
             # 엔티티 생성
             alert_log = PriceAlertLog(
                 symbol=symbol,
@@ -95,15 +107,17 @@ class PriceAlertLogService:
             )
 
             # 저장 및 커밋
-            self.repository.save(alert_log)
-            self.session.commit()
+            repository.save(alert_log)
+            session.commit()
             print(f"📌 {symbol} 알림 로그 저장 완료: {alert_type} 기준 {base_type}")
 
         except Exception as e:
             # 예외 발생 시 롤백
-            self.session.rollback()
+            if session:
+                session.rollback()
             print(f"❌ {symbol} 알림 로그 저장 실패: {e}")
 
         finally:
             # 세션 종료
-            self.session.close()
+            if session:
+                session.close()

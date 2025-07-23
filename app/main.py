@@ -69,6 +69,15 @@ app.include_router(
     tags=["Outcome Analysis"],
 )
 
+# 테스트 라우터 등록
+from app.technical_analysis.web.route.test_router import router as test_router
+
+app.include_router(
+    test_router,
+    prefix="/api/test",
+    tags=["Test API"],
+)
+
 # 비동기 API 라우터 등록
 from app.technical_analysis.web.route.async_api_router import router as async_api_router
 
