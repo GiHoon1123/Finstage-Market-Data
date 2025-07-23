@@ -15,6 +15,7 @@ class NewsProcessor:
         self.session = None
         self.content_repo = None
         self.translation_repo = None
+        self.telegram_enabled = True  # 텔레그램 알림 기본 활성화
 
     def _get_session_and_repos(self):
         """세션과 리포지토리 지연 초기화"""
@@ -28,7 +29,6 @@ class NewsProcessor:
         """소멸자에서 세션 정리"""
         if self.session:
             self.session.close()
-        self.telegram_enabled = True
 
     def run(self):
         try:
@@ -95,7 +95,10 @@ class NewsProcessor:
     def _send_notification(
         self, content: Content, title_ko: str, summary_ko: str, symbol: str
     ):
-        if not self.telegram_enabled:
+        # telegram_enabled 속성이 없으면 기본값으로 True 사용
+        telegram_enabled = getattr(self, "telegram_enabled", True)
+
+        if not telegram_enabled:
             return
 
         try:

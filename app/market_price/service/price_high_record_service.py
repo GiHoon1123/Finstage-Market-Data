@@ -25,11 +25,13 @@ class PriceHighRecordService:
             self.session.close()
 
     def update_all_time_high(self, symbol: str):
+        session = None
         try:
+            session, repository = self._get_session_and_repo()
             current_price, recorded_at = self.client.get_all_time_high(symbol)
             source = "yahoo"
 
-            existing = self.repository.get_high_record(symbol)
+            existing = repository.get_high_record(symbol)
 
             if existing is None or current_price > existing.price:
                 new_high = PriceHighRecord(
@@ -38,20 +40,27 @@ class PriceHighRecordService:
                     price=current_price,
                     recorded_at=recorded_at,
                 )
-                self.repository.save(new_high)
-                self.session.commit()
+                repository.save(new_high)
+                session.commit()
                 print(f"🚀 {symbol} 최고가 갱신: {current_price}")
             else:
                 print(f"ℹ️ {symbol} 최고가 유지 중: {existing.price}")
         except Exception as e:
-            self.session.rollback()
+            if session:
+                session.rollback()
             print(f"❌ 최고가 저장 중 오류: {e}")
         finally:
-            self.session.close()
+            if session:
+                session.close()
 
     def get_latest_record(self, symbol: str) -> PriceHighRecord | None:
+        session = None
         try:
-            return self.repository.get_high_record(symbol)
+            session, repository = self._get_session_and_repo()
+            return repository.get_high_record(symbol)
         except Exception as e:
             print(f"❌ {symbol} 최고가 조회 실패: {e}")
             return None
+        finally:
+            if session:
+                session.close()
