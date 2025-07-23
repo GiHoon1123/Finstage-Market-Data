@@ -26,7 +26,7 @@ class YahooNewsCrawler(BaseCrawler):
             items = root.find("channel").findall("item")
 
             news_list = []
-            for item in items[:1]:  
+            for item in items[:1]:
                 title = item.findtext("title")
                 url = item.findtext("link")
                 summary = item.findtext("description")
@@ -40,17 +40,19 @@ class YahooNewsCrawler(BaseCrawler):
                 if published_at and published_at.tzinfo:
                     published_at = published_at.replace(tzinfo=None)
 
-                news_list.append({
-                    "title": title.strip(),
-                    "url": url.strip(),
-                    "source": "yahoo.com",
-                    "summary": summary.strip() if summary else None,
-                    "html": "",
-                    "symbol": self.symbol,
-                    "content_hash": content_hash,
-                    "crawled_at": self.get_crawled_at(),
-                    "published_at": published_at
-                })
+                news_list.append(
+                    {
+                        "title": title.strip(),
+                        "url": url.strip(),
+                        "source": "yahoo.com",
+                        "summary": summary.strip() if summary else None,
+                        "html": "",
+                        "symbol": self.symbol,
+                        "content_hash": content_hash,
+                        "crawled_at": self.get_crawled_at(),
+                        "published_at": published_at,
+                    }
+                )
 
             return news_list
 
@@ -59,6 +61,15 @@ class YahooNewsCrawler(BaseCrawler):
             return []
 
     def process_all(self):
-        results = self.crawl()
-        processor = NewsProcessor(results)
-        processor.run()
+        try:
+            results = self.crawl()
+            if not results:
+                print(f"⚠️ {self.symbol} 뉴스 없음")
+                return None
+
+            processor = NewsProcessor(results)
+            processor.run()
+            return True
+        except Exception as e:
+            print(f"❌ {self.symbol} 처리 실패: {e}")
+            return None

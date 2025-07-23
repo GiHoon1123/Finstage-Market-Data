@@ -32,6 +32,8 @@ class NewsProcessor:
 
     def run(self):
         try:
+            session, content_repo, translation_repo = self._get_session_and_repos()
+
             for item in self.news_items:
                 if self._is_duplicate(item):
                     continue
@@ -40,20 +42,24 @@ class NewsProcessor:
                 title_ko, summary_ko, symbol = self._save_translation(content)
                 self._send_notification(content, title_ko, summary_ko, symbol)
 
-            self.session.commit()
+            session.commit()
         except Exception as e:
-            self.session.rollback()
+            if self.session:
+                self.session.rollback()
             print(f"❌ 처리 중 예외 발생: {e}")
         finally:
-            self.session.close()
+            if self.session:
+                self.session.close()
 
     def _is_duplicate(self, item: dict) -> bool:
-        if self.content_repo.exists_by_hash(item["content_hash"]):
+        session, content_repo, translation_repo = self._get_session_and_repos()
+        if content_repo.exists_by_hash(item["content_hash"]):
             print(f"🔁 중복 스킵: {item['title']}")
             return True
         return False
 
     def _save_content(self, item: dict) -> Content:
+        session, content_repo, translation_repo = self._get_session_and_repos()
         content = Content(
             symbol=item["symbol"],
             title=item["title"],
@@ -65,11 +71,12 @@ class NewsProcessor:
             published_at=item["published_at"],
             content_hash=item["content_hash"],
         )
-        self.content_repo.save(content)
-        self.session.flush()
+        content_repo.save(content)
+        session.flush()
         return content
 
     def _save_translation(self, content: Content) -> tuple[str, str | None]:  # ✅ 수정
+        session, content_repo, translation_repo = self._get_session_and_repos()
         title_ko = translate_to_korean(content.title)
         summary_ko = translate_to_korean(content.summary) if content.summary else None
         symbol = content.symbol
@@ -81,7 +88,7 @@ class NewsProcessor:
             translator="google",
             published_at=content.published_at,
         )
-        self.translation_repo.save(translation)
+        translation_repo.save(translation)
         print(f"✅ 저장 완료: {content.title} → {title_ko}")
         return title_ko, summary_ko, symbol  # ✅ 번역 결과 반환
 

@@ -17,6 +17,9 @@ from app.technical_analysis.web.route.utility_router import router as utility_ro
 from app.technical_analysis.web.route.advanced_pattern_router import (
     router as advanced_pattern_router,
 )
+from app.technical_analysis.web.route.outcome_analysis_router import (
+    router as outcome_analysis_router,
+)
 
 
 import os
@@ -59,6 +62,11 @@ app.include_router(
     advanced_pattern_router,
     prefix="/api/technical-analysis/advanced",
     tags=["Advanced Pattern Analysis"],
+)
+app.include_router(
+    outcome_analysis_router,
+    prefix="/api/technical-analysis/outcomes",
+    tags=["Outcome Analysis"],
 )
 
 # 비동기 API 라우터 등록

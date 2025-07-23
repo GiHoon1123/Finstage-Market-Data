@@ -1,7 +1,7 @@
 import requests
 import random
 import pandas as pd
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from datetime import datetime
 
 
@@ -16,6 +16,8 @@ class YahooPriceClient:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": random.choice(self.USER_AGENTS)})
+        # 캐시 추가 - 동일한 요청에 대한 중복 호출 방지
+        self._cache: Dict[str, Any] = {}
 
     def get_all_time_high(
         self, symbol: str
@@ -25,6 +27,15 @@ class YahooPriceClient:
             res = self.session.get(url)
             res.raise_for_status()
             data = res.json()
+
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 최고가 데이터 형식 오류")
+                return None, None
 
             timestamps = data["chart"]["result"][0]["timestamp"]
             highs = data["chart"]["result"][0]["indicators"]["quote"][0]["high"]
@@ -51,6 +62,15 @@ class YahooPriceClient:
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 전일 종가 데이터 형식 오류")
+                return None, None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
             closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
 
@@ -73,6 +93,15 @@ class YahooPriceClient:
             res = self.session.get(url)
             res.raise_for_status()
             data = res.json()
+
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 전일 저점 데이터 형식 오류")
+                return None, None
 
             timestamps = data["chart"]["result"][0]["timestamp"]
             lows = data["chart"]["result"][0]["indicators"]["quote"][0]["low"]
@@ -97,6 +126,15 @@ class YahooPriceClient:
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 전일 고점 데이터 형식 오류")
+                return None, None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
             highs = data["chart"]["result"][0]["indicators"]["quote"][0]["high"]
 
@@ -113,14 +151,41 @@ class YahooPriceClient:
             return None, None
 
     def get_latest_minute_price(self, symbol: str) -> Optional[float]:
+        # 캐시 키 생성
+        cache_key = f"latest_minute_{symbol}"
+
+        # 캐시에 있으면 캐시된 값 반환 (30초 이내 요청은 캐시 사용)
+        if cache_key in self._cache:
+            cached_data = self._cache[cache_key]
+            cache_time = cached_data.get("timestamp", 0)
+            if (datetime.now().timestamp() - cache_time) < 30:
+                print(f"📊 {symbol} 캐시된 1분봉 사용: {cached_data['price']}")
+                return cached_data["price"]
+
         url = f"{self.BASE_URL}{symbol}?range=1d&interval=1m"
         try:
             res = self.session.get(url)
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 1분봉 데이터 형식 오류")
+                return None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
-            closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+            quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+            # close 데이터가 없는 경우 처리
+            if "close" not in quotes:
+                print(f"❌ {symbol} 1분봉 종가 데이터 없음")
+                return None
+
+            closes = quotes["close"]
 
             df = pd.DataFrame({"timestamp": timestamps, "close": closes}).dropna()
 
@@ -132,6 +197,13 @@ class YahooPriceClient:
             price = latest["close"]
             timestamp = datetime.fromtimestamp(latest["timestamp"])
             print(f"📉 {symbol} 최근 1분봉: {price} @ {timestamp}")
+
+            # 캐시에 저장
+            self._cache[cache_key] = {
+                "price": price,
+                "timestamp": datetime.now().timestamp(),
+            }
+
             return price
         except Exception as e:
             print(f"❌ {symbol} 1분봉 수집 실패: {e}")
@@ -147,8 +219,24 @@ class YahooPriceClient:
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 1분봉 데이터 형식 오류")
+                return None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
             quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+            # 필수 필드 확인
+            required_fields = ["open", "high", "low", "close", "volume"]
+            for field in required_fields:
+                if field not in quotes:
+                    print(f"❌ {symbol} 1분봉 데이터 필드 누락: {field}")
+                    return None
 
             df = pd.DataFrame(
                 {
@@ -188,8 +276,24 @@ class YahooPriceClient:
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 15분봉 데이터 형식 오류")
+                return None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
             quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+            # 필수 필드 확인
+            required_fields = ["open", "high", "low", "close", "volume"]
+            for field in required_fields:
+                if field not in quotes:
+                    print(f"❌ {symbol} 15분봉 데이터 필드 누락: {field}")
+                    return None
 
             df = pd.DataFrame(
                 {
@@ -228,8 +332,24 @@ class YahooPriceClient:
             res.raise_for_status()
             data = res.json()
 
+            # 데이터 유효성 검사 추가
+            if (
+                not data.get("chart")
+                or not data["chart"].get("result")
+                or not data["chart"]["result"][0].get("indicators")
+            ):
+                print(f"❌ {symbol} 일봉 데이터 형식 오류")
+                return None
+
             timestamps = data["chart"]["result"][0]["timestamp"]
             quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+            # 필수 필드 확인
+            required_fields = ["open", "high", "low", "close", "volume"]
+            for field in required_fields:
+                if field not in quotes:
+                    print(f"❌ {symbol} 일봉 데이터 필드 누락: {field}")
+                    return None
 
             df = pd.DataFrame(
                 {
@@ -289,8 +409,23 @@ class YahooPriceClient:
                     print(f"   ⚠️ {year}년 데이터 없음")
                     continue
 
+                if not data["chart"]["result"][0].get("indicators"):
+                    print(f"   ⚠️ {year}년 지표 데이터 없음")
+                    continue
+
                 timestamps = data["chart"]["result"][0]["timestamp"]
                 quotes = data["chart"]["result"][0]["indicators"]["quote"][0]
+
+                # 필수 필드 확인
+                required_fields = ["open", "high", "low", "close", "volume"]
+                missing_fields = [
+                    field for field in required_fields if field not in quotes
+                ]
+                if missing_fields:
+                    print(
+                        f"   ⚠️ {year}년 데이터 필드 누락: {', '.join(missing_fields)}"
+                    )
+                    continue
 
                 year_df = pd.DataFrame(
                     {

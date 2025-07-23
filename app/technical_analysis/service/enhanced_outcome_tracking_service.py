@@ -344,11 +344,36 @@ class EnhancedOutcomeTrackingService:
         try:
             # 현재 가격을 가져옵니다 (최신 1분봉 가격 사용)
             print(f"      📡 {signal.symbol}의 현재 가격을 가져오는 중...")
-            current_price = self.yahoo_client.get_latest_minute_price(signal.symbol)
+
+            # 최대 3번 재시도 로직 추가
+            retry_count = 0
+            max_retries = 3
+            current_price = None
+
+            while retry_count < max_retries and current_price is None:
+                if retry_count > 0:
+                    print(f"      🔄 재시도 {retry_count}/{max_retries}...")
+                    # 재시도 간 짧은 대기 시간 추가
+                    import time
+
+                    time.sleep(1)
+
+                current_price = self.yahoo_client.get_latest_minute_price(signal.symbol)
+                retry_count += 1
 
             if not current_price:
-                print(f"      ❌ 현재 가격을 가져올 수 없습니다")
-                return False
+                print(
+                    f"      ❌ 현재 가격을 가져올 수 없습니다 (최대 재시도 횟수 초과)"
+                )
+                # 가격을 가져올 수 없는 경우, 원본 신호의 가격을 대체값으로 사용
+                if signal.current_price:
+                    print(
+                        f"      ⚠️ 원본 신호의 가격을 대체값으로 사용: ${signal.current_price:.2f}"
+                    )
+                    current_price = signal.current_price
+                else:
+                    print(f"      ❌ 대체 가격도 없음, 업데이트 건너뜀")
+                    return False
 
             print(f"      💰 현재 가격: ${current_price:.2f}")
 
