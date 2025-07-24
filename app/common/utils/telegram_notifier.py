@@ -151,10 +151,23 @@ def send_drop_from_high_message(
 
 
 def _send_basic(symbol: str, message: str, is_news: bool = False):
+    # .env.test 파일에서 환경변수 로드
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(".env.test")
+    except ImportError:
+        pass  # python-dotenv가 없으면 시스템 환경변수 사용
+
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("❌ TELEGRAM 환경변수가 설정되지 않았습니다.")
+        print(
+            f"🔍 디버그: TELEGRAM_BOT_TOKEN = {TELEGRAM_BOT_TOKEN[:20] if TELEGRAM_BOT_TOKEN else 'None'}..."
+        )
+        print(f"🔍 디버그: TELEGRAM_CHAT_ID = {TELEGRAM_CHAT_ID}")
         return
 
     display_name = SYMBOL_NAME_MAP.get(symbol, symbol)
@@ -476,3 +489,95 @@ def send_dead_cross_message(
         f"🕒 발생 시점: {format_time_with_kst(now)}"
     )
     _send_basic(symbol, message)
+
+
+def send_telegram_message(message: str):
+    """
+    일반 텔레그램 메시지 전송 (상태 리포트용)
+
+    Args:
+        message: 전송할 메시지 내용
+    """
+    # .env.test 파일에서 환경변수 로드
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(".env.test")
+    except ImportError:
+        pass  # python-dotenv가 없으면 시스템 환경변수 사용
+
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+    print(
+        f"🔍 디버그: TELEGRAM_BOT_TOKEN = {TELEGRAM_BOT_TOKEN[:20] if TELEGRAM_BOT_TOKEN else 'None'}..."
+    )
+    print(f"🔍 디버그: TELEGRAM_CHAT_ID = {TELEGRAM_CHAT_ID}")
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ TELEGRAM 환경변수가 설정되지 않았습니다.")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False,
+    }
+
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code != 200:
+            print(f"❌ 텔레그램 전송 실패: {response.status_code} - {response.text}")
+        else:
+            print(f"📨 텔레그램 전송 완료")
+    except Exception as e:
+        print(f"❌ 텔레그램 전송 중 예외 발생: {e}")
+        traceback.print_exc()
+
+
+def send_telegram_message(message: str):
+    """
+    일반 텔레그램 메시지 전송 (상태 리포트용)
+
+    Args:
+        message: 전송할 메시지 내용
+    """
+    # main.py와 동일한 방식으로 환경변수 로드
+    from dotenv import load_dotenv
+
+    mode = os.getenv("ENV_MODE", "dev")
+    env_file = f".env.{mode}"
+    load_dotenv(dotenv_path=env_file)
+
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+    print(f"🔍 디버그: ENV_MODE = {mode}, env_file = {env_file}")
+    print(
+        f"🔍 디버그: TELEGRAM_BOT_TOKEN = {TELEGRAM_BOT_TOKEN[:20] if TELEGRAM_BOT_TOKEN else 'None'}..."
+    )
+    print(f"🔍 디버그: TELEGRAM_CHAT_ID = {TELEGRAM_CHAT_ID}")
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ TELEGRAM 환경변수가 설정되지 않았습니다.")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False,
+    }
+
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code != 200:
+            print(f"❌ 텔레그램 전송 실패: {response.status_code} - {response.text}")
+        else:
+            print(f"📨 텔레그램 전송 완료")
+    except Exception as e:
+        print(f"❌ 텔레그램 전송 중 예외 발생: {e}")
+        traceback.print_exc()

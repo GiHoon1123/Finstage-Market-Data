@@ -159,13 +159,13 @@ def run_realtime_price_monitor_job():
 
 def run_daily_index_analysis():
     """
-    주요 지수 일봉 기술적 지표 분석
+    주요 지수 상태 리포트 생성 및 전송
     - 나스닥 지수 (^IXIC): 기술주 중심
     - S&P 500 지수 (^GSPC): 전체 시장
-    - 장기 투자 관점에서 가장 중요한 신호들
-    - 1시간마다 실행 (중요한 신호라서 자주 체크)
+    - 기존 임계점 돌파 알림 → 상태 리포트 형태로 변경
+    - 1시간마다 실행하여 현재 상태 정보 제공
     """
-    print("📊 주요 지수 일봉 기술적 지표 분석 시작")
+    print("📊 주요 지수 상태 리포트 생성 시작")
     try:
         # 🆕 1단계: 최신 일봉 데이터 수집 및 저장
         from app.technical_analysis.service.daily_data_collection_service import (
@@ -182,18 +182,15 @@ def run_daily_index_analysis():
             f"스킵 {collection_result.get('summary', {}).get('skipped', 0)}개"
         )
 
-        # 2단계: 기존 기술적 분석
+        # 🆕 2단계: 상태 리포트 생성 및 전송 (기존 + 신규 전략 통합)
         service = TechnicalMonitorService()
 
-        # 나스닥 지수 분석
-        service.check_nasdaq_index_daily()
+        # 한시간마다 상태 리포트 생성 (임계점 돌파 대신)
+        service.run_hourly_status_report()
 
-        # S&P 500 지수 분석
-        service.check_sp500_index_daily()
-
-        print("✅ 주요 지수 일봉 기술적 지표 분석 완료")
+        print("✅ 주요 지수 상태 리포트 생성 완료")
     except Exception as e:
-        print(f"❌ 주요 지수 일봉 기술적 지표 분석 실패: {e}")
+        print(f"❌ 주요 지수 상태 리포트 생성 실패: {e}")
 
 
 def run_all_technical_analysis():
@@ -765,8 +762,10 @@ def start_scheduler():
     # - 나스닥 지수 (^IXIC): 기술주 중심 분석
     # - S&P 500 지수 (^GSPC): 전체 시장 분석
     # - 장기 투자 관점에서 가장 중요한 신호들
-    # - 1시간마다 실행 (중요한 신호라서 자주 체크)
-    scheduler.add_job(run_daily_index_analysis, "interval", hours=1)
+    # - 매일 오전 7시 KST 실행 (한국 시간 기준)
+    scheduler.add_job(
+        run_daily_index_analysis, "cron", hour=7, minute=0, timezone="Asia/Seoul"
+    )
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트용)
