@@ -735,24 +735,40 @@ def start_scheduler():
     print("🔄 APScheduler 시작됨")
 
     # =============================================================================
-    # 기존 작업들 (주석처리됨)
+    # 뉴스 크롤링 작업들 (빈도 최적화)
+    # 기존: 10분~30분마다 → 신규: 1시간마다 통일 (텔레그램 스팸 방지)
     # =============================================================================
-    scheduler.add_job(run_investing_economic_news, "interval", minutes=30)
-    scheduler.add_job(run_investing_market_news, "interval", minutes=30)
-    scheduler.add_job(run_yahoo_futures_news, "interval", minutes=10)
-    scheduler.add_job(run_yahoo_index_news, "interval", minutes=30)
-    scheduler.add_job(run_yahoo_stock_news, "interval", minutes=15)
-    scheduler.add_job(run_high_price_update_job, "interval", hours=1)
-    scheduler.add_job(run_previous_close_snapshot_job, "interval", hours=1)
-    scheduler.add_job(run_previous_high_snapshot_job, "interval", hours=1)
-    scheduler.add_job(run_previous_low_snapshot_job, "interval", hours=1)
+    scheduler.add_job(run_investing_economic_news, "interval", hours=1)
+    scheduler.add_job(run_investing_market_news, "interval", hours=1)
+    scheduler.add_job(run_yahoo_futures_news, "interval", hours=1)
+    scheduler.add_job(run_yahoo_index_news, "interval", hours=1)
+    scheduler.add_job(run_yahoo_stock_news, "interval", hours=1)
+    # 가격 스냅샷 작업들 (1시간마다 → 하루 1번으로 최적화)
+    # 일봉 기준에서는 하루 1번이면 충분함
+    scheduler.add_job(
+        run_high_price_update_job, "cron", hour=6, minute=0, timezone="Asia/Seoul"
+    )
+    scheduler.add_job(
+        run_previous_close_snapshot_job,
+        "cron",
+        hour=6,
+        minute=10,
+        timezone="Asia/Seoul",
+    )
+    scheduler.add_job(
+        run_previous_high_snapshot_job, "cron", hour=6, minute=20, timezone="Asia/Seoul"
+    )
+    scheduler.add_job(
+        run_previous_low_snapshot_job, "cron", hour=6, minute=30, timezone="Asia/Seoul"
+    )
 
     # =============================================================================
     # 현재 활성화된 작업들
     # =============================================================================
 
-    # 실시간 가격 모니터링 (기존)
-    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=1)
+    # 실시간 가격 모니터링 (1분 → 15분으로 변경)
+    # 일봉 기준 투자에서는 15분 간격이면 충분함
+    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=15)
 
     # =============================================================================
     # 🆕 주요 지수 기술적 지표 모니터링 작업들
