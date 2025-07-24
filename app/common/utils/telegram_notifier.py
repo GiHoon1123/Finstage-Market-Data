@@ -225,6 +225,7 @@ def send_ma_breakout_message(
     ma_value: float,
     signal_type: str,
     now: datetime,
+    ma_type: str = "SMA",
 ):
     """
     이동평균선 돌파/이탈 알림
@@ -237,6 +238,7 @@ def send_ma_breakout_message(
         ma_value: 이동평균값
         signal_type: breakout_up(상향돌파) 또는 breakout_down(하향돌파)
         now: 신호 발생 시점 (UTC)
+        ma_type: 이동평균 유형 (SMA, EMA, VWAP)
     """
     name = SYMBOL_PRICE_MAP.get(symbol, symbol)
 
@@ -244,6 +246,12 @@ def send_ma_breakout_message(
     timeframe_name = {"1min": "1분봉", "15min": "15분봉", "1day": "일봉"}.get(
         timeframe, timeframe
     )
+
+    # 이동평균선 유형별 표시명
+    if ma_type == "VWAP":
+        ma_display = "VWAP"
+    else:
+        ma_display = f"{ma_type}{ma_period}"
 
     # 신호 타입별 이모지와 메시지
     if signal_type == "breakout_up":
@@ -261,7 +269,7 @@ def send_ma_breakout_message(
         f"{emoji} <b>{name}({symbol}) {ma_period}선 {action}!</b>\n\n"
         f"📊 시간대: {timeframe_name}\n"
         f"💵 현재가: {current_price:.2f}\n"
-        f"📈 {ma_period}일선: {ma_value:.2f}\n"
+        f"📈 {ma_display}: {ma_value:.2f}\n"
         f"📊 돌파폭: <b>{percent_text}</b>\n"
         f"🕒 돌파 시점: {format_time_with_kst(now)}"
     )

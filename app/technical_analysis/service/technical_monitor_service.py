@@ -8,7 +8,7 @@
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import pandas as pd
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.technical_analysis.service.technical_indicator_service import (
@@ -20,6 +20,9 @@ from app.common.constants.technical_settings import (
     TECHNICAL_SYMBOLS,
     MA_PERIODS,
     RSI_SETTINGS,
+    MACD_SETTINGS,
+    STOCHASTIC_SETTINGS,
+    VOLUME_SETTINGS,
     ALERT_INTERVALS,
 )
 from app.common.utils.telegram_notifier import (
@@ -40,957 +43,429 @@ class TechnicalMonitorService:
         self.alert_log_service = PriceAlertLogService()
         self.signal_storage_service = SignalStorageService()
 
-    # =========================================================================
-    # 주요 지수 모니터링 (일봉 중심)
-    # =========================================================================
-
-    # =========================================================================
-    # 나스닥 지수 모니터링 (장기 - 일봉)
-    # =========================================================================
-
-    def check_nasdaq_index_daily(self):
+    def monitor_comprehensive_signals(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
-        나스닥 지수 일봉 기술적 지표 모니터링
+        종합 기술적 신호 모니터링 (기존 + 새로 추가된 전략 통합)
 
-        모니터링 대상:
-        - 50일 이동평균선 돌파/이탈 (중기 추세)
-        - 200일 이동평균선 돌파/이탈 (장기 추세, 가장 중요!)
-        - 골든크로스/데드크로스 (50일선 vs 200일선)
-        - RSI 과매수/과매도 (장기 관점)
+        기존 전략:
+        - 50일/200일 이동평균선
+        - 골든크로스/데드크로스
+        - RSI 과매수/과매도
 
-        특징:
-        - 가장 신뢰도 높은 신호들
-        - 중장기 투자 관점에서 중요
-        - 가짜 신호 적고 의미있는 추세 변화
+        새로 추가된 전략:
+        1. 고급 이동평균 (SMA 5,10,21,50,100,200 + EMA 9,21,50 + VWAP)
+        2. MACD (교차, 제로선 돌파, 히스토그램)
+        3. 스토캐스틱 (과매수/과매도, 교차)
+        4. 거래량 (급증/부족)
+        5. 종합 시장 심리 분석
         """
-        symbol = "^IXIC"  # 나스닥 지수
-        timeframe = "1day"
-
         try:
-            print(f"📊 {symbol} 일봉 기술적 지표 분석 시작")
+            print(f"🔍 {symbol} 종합 기술적 분석 시작 (기존 + 신규 전략)")
 
-            # 일봉 데이터 가져오기 (1년치 = 약 252개 거래일)
+            # 데이터 가져오기 (1년치)
             df = self.yahoo_client.get_daily_data(symbol, period="1y")
             if df is None or len(df) < 200:
+                print(f"❌ {symbol} 데이터 부족")
+                return None
+
+            # 컬럼명을 소문자로 변환
+            df.columns = df.columns.str.lower()
+
+            # 종합 분석 수행 (모든 전략 포함)
+            analysis_result = self.indicator_service.analyze_comprehensive_signals(df)
+
+            if analysis_result:
+                current_price = analysis_result["current_price"]
+                price_change_pct = analysis_result["price_change_pct"]
+                signals = analysis_result.get("signals", {})
+                indicators = analysis_result.get("indicators", {})
+
                 print(
-                    f"⚠️ {symbol} 일봉 데이터 부족: {len(df) if df is not None else 0}개"
+                    f"💰 {symbol} 현재가: {current_price:.2f} ({price_change_pct:+.2f}%)"
                 )
-                return
+                print(f"🔔 감지된 신호: {len(signals)}개")
 
-            # 현재 시간
-            now = datetime.utcnow()
-            current_price = df["close"].iloc[-1]
-
-            print(f"💰 {symbol} 현재가: {current_price:.2f} (일봉 기준)")
-
-            # 이동평균선 분석 (50일선, 200일선)
-            self._check_moving_averages(symbol, df, timeframe, now)
-
-            # 골든크로스/데드크로스 분석 (가장 중요!)
-            self._check_cross_signals(symbol, df, timeframe, now)
-
-            # RSI 분석 (장기 관점)
-            self._check_rsi_signals(symbol, df, timeframe, now)
-
-            print(f"✅ {symbol} 일봉 분석 완료")
-
-        except Exception as e:
-            print(f"❌ {symbol} 일봉 분석 실패: {e}")
-
-    def check_sp500_index_daily(self):
-        """
-        S&P 500 지수 일봉 기술적 지표 모니터링
-
-        모니터링 대상:
-        - 50일 이동평균선 돌파/이탈 (중기 추세)
-        - 200일 이동평균선 돌파/이탈 (장기 추세, 가장 중요!)
-        - 골든크로스/데드크로스 (50일선 vs 200일선)
-        - RSI 과매수/과매도 (장기 관점)
-
-        특징:
-        - 미국 전체 시장을 대표하는 지수
-        - 500대 기업의 시가총액 가중평균
-        - 가장 신뢰도 높은 신호들
-        - 중장기 투자 관점에서 중요
-        """
-        symbol = "^GSPC"  # S&P 500 지수
-        timeframe = "1day"
-
-        try:
-            print(f"📊 {symbol} 일봉 기술적 지표 분석 시작")
-
-            # 일봉 데이터 가져오기 (1년치 = 약 252개 거래일)
-            df = self.yahoo_client.get_daily_data(symbol, period="1y")
-            if df is None or len(df) < 200:
-                print(
-                    f"⚠️ {symbol} 일봉 데이터 부족: {len(df) if df is not None else 0}개"
-                )
-                return
-
-            # 현재 시간
-            now = datetime.utcnow()
-            current_price = df["close"].iloc[-1]
-
-            print(f"💰 {symbol} 현재가: {current_price:.2f} (일봉 기준)")
-
-            # 이동평균선 분석 (50일선, 200일선)
-            self._check_moving_averages(symbol, df, timeframe, now)
-
-            # 골든크로스/데드크로스 분석 (가장 중요!)
-            self._check_cross_signals(symbol, df, timeframe, now)
-
-            # RSI 분석 (장기 관점)
-            self._check_rsi_signals(symbol, df, timeframe, now)
-
-            print(f"✅ {symbol} 일봉 분석 완료")
-
-        except Exception as e:
-            print(f"❌ {symbol} 일봉 분석 실패: {e}")
-
-    # =========================================================================
-    # 개별 지표 분석 함수들
-    # =========================================================================
-
-    def _check_moving_averages(self, symbol: str, df, timeframe: str, now: datetime):
-        """이동평균선 돌파/이탈 체크"""
-        try:
-            current_price = df["close"].iloc[-1]
-            prev_price = df["close"].iloc[-2] if len(df) >= 2 else current_price
-
-            # 시간대별로 다른 이동평균선 체크
-            if timeframe in ["1min", "15min"]:
-                # 단기: 20봉, 50봉 체크
-                periods = [20, 50]
-            else:
-                # 장기: 50일, 200일 체크
-                periods = [50, 200]
-
-            for period in periods:
-                # 이동평균 계산
-                ma = self.indicator_service.calculate_moving_average(
-                    df["close"], period
-                )
-                if ma.empty or len(ma) < 2:
-                    continue
-
-                current_ma = ma.iloc[-1]
-                prev_ma = ma.iloc[-2]
-
-                # 돌파 신호 감지
-                breakout_signal = self.indicator_service.detect_ma_breakout(
-                    current_price, current_ma, prev_price, prev_ma
-                )
-
-                if breakout_signal:
-                    # 중복 알림 방지 체크
-                    alert_type = f"MA{period}_{breakout_signal}"
-                    interval = ALERT_INTERVALS["MA_BREAKOUT"][timeframe]
-
-                    if not self.alert_log_service.exists_recent_alert(
-                        symbol, alert_type, f"MA{period}", interval
-                    ):
-                        # 🆕 1. 기술적 신호를 데이터베이스에 저장
-                        saved_signal = (
-                            self.signal_storage_service.save_ma_breakout_signal(
-                                symbol=symbol,
-                                timeframe=timeframe,
-                                ma_period=period,
-                                breakout_direction=breakout_signal.replace(
-                                    "breakout_", ""
-                                ),  # "up" or "down"
-                                current_price=current_price,
-                                ma_value=current_ma,
-                                volume=(
-                                    int(df["volume"].iloc[-1])
-                                    if "volume" in df.columns
-                                    and not pd.isna(df["volume"].iloc[-1])
-                                    else None
-                                ),
+                # 신호별 상세 출력
+                if signals:
+                    for signal_type, signal_value in signals.items():
+                        if signal_type == "rsi":
+                            rsi_val = indicators.get("rsi", {}).get("current", 0)
+                            print(f"  📊 RSI 신호: {signal_value} (RSI: {rsi_val:.1f})")
+                        elif signal_type == "macd":
+                            print(f"  📈 MACD 신호: {signal_value}")
+                        elif signal_type == "stochastic":
+                            stoch = indicators.get("stochastic", {})
+                            k_val = stoch.get("k_percent", 0)
+                            d_val = stoch.get("d_percent", 0)
+                            print(
+                                f"  🔄 스토캐스틱 신호: {signal_value} (%K:{k_val:.1f}, %D:{d_val:.1f})"
                             )
-                        )
+                        elif signal_type == "volume":
+                            vol_ratio = indicators.get("volume", {}).get("ratio", 0)
+                            print(
+                                f"  📊 거래량 신호: {signal_value} (비율: {vol_ratio:.1f}배)"
+                            )
+                        else:
+                            print(f"  🔔 {signal_type.upper()} 신호: {signal_value}")
 
-                        # 2. 텔레그램 알림 전송
-                        send_ma_breakout_message(
-                            symbol=symbol,
-                            timeframe=timeframe,
-                            ma_period=period,
-                            current_price=current_price,
-                            ma_value=current_ma,
-                            signal_type=breakout_signal,
-                            now=now,
-                        )
+                return {
+                    "symbol": symbol,
+                    "timestamp": datetime.now(),
+                    "current_price": current_price,
+                    "price_change_pct": price_change_pct,
+                    "signals": signals,
+                    "indicators": indicators,
+                }
 
-                        # 🆕 3. 알림 발송 상태 업데이트 (신호가 저장된 경우에만)
-                        if saved_signal:
-                            self.signal_storage_service.mark_alert_sent(saved_signal.id)
-
-                        # 4. 기존 알림 로그 저장 (호환성 유지)
-                        self.alert_log_service.save_alert(
-                            symbol=symbol,
-                            alert_type=alert_type,
-                            base_type=f"MA{period}",
-                            base_price=current_ma,
-                            current_price=current_price,
-                            threshold_percent=0.0,
-                            actual_percent=((current_price - current_ma) / current_ma)
-                            * 100,
-                            base_time=now,
-                            triggered_at=now,
-                        )
-
-                        print(
-                            f"📨 {symbol} MA{period} {breakout_signal} 알림 전송 완료"
-                        )
-                        if saved_signal:
-                            print(f"💾 신호 DB 저장 완료 (ID: {saved_signal.id})")
+            return None
 
         except Exception as e:
-            print(f"❌ 이동평균선 분석 실패: {e}")
+            print(f"❌ {symbol} 종합 분석 실패: {e}")
+            return None
 
-    def _check_rsi_signals(self, symbol: str, df, timeframe: str, now: datetime):
-        """RSI 신호 체크"""
+    def monitor_market_sentiment(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """시장 심리 분석"""
         try:
-            # RSI 계산
+            print(f"🧠 {symbol} 시장 심리 분석 시작")
+
+            # 데이터 가져오기
+            df = self.yahoo_client.get_daily_data(symbol, period="6mo")
+            if df is None or len(df) < 100:
+                print(f"❌ {symbol} 데이터 부족")
+                return None
+
+            # 컬럼명을 소문자로 변환
+            df.columns = df.columns.str.lower()
+
+            # 각 지표별 점수 계산
+            scores = {}
+
+            # 1. RSI 점수 (-2 ~ +2)
             rsi = self.indicator_service.calculate_rsi(df["close"])
-            if rsi.empty or len(rsi) < 2:
-                return
+            if not rsi.empty:
+                current_rsi = rsi.iloc[-1]
+                if current_rsi >= 70:
+                    scores["rsi"] = -2  # 과매수 (약세)
+                elif current_rsi >= 60:
+                    scores["rsi"] = -1
+                elif current_rsi <= 30:
+                    scores["rsi"] = 2  # 과매도 (강세)
+                elif current_rsi <= 40:
+                    scores["rsi"] = 1
+                else:
+                    scores["rsi"] = 0  # 중립
 
-            current_rsi = rsi.iloc[-1]
-            prev_rsi = rsi.iloc[-2]
+            # 2. MACD 점수 (-2 ~ +2)
+            macd_data = self.indicator_service.calculate_macd(df["close"])
+            if macd_data:
+                current_macd = macd_data["macd"].iloc[-1]
+                current_signal = macd_data["signal"].iloc[-1]
+                histogram = macd_data["histogram"].iloc[-1]
 
-            # RSI 신호 감지
-            rsi_signal = self.indicator_service.detect_rsi_signals(
-                current_rsi, prev_rsi
-            )
+                if current_macd > current_signal and histogram > 0:
+                    scores["macd"] = 2  # 강한 상승 신호
+                elif current_macd > current_signal:
+                    scores["macd"] = 1  # 상승 신호
+                elif current_macd < current_signal and histogram < 0:
+                    scores["macd"] = -2  # 강한 하락 신호
+                elif current_macd < current_signal:
+                    scores["macd"] = -1  # 하락 신호
+                else:
+                    scores["macd"] = 0  # 중립
 
-            if rsi_signal:
-                # 중복 알림 방지 체크
-                alert_type = f"RSI_{rsi_signal}"
-                interval = ALERT_INTERVALS["RSI_ALERT"][timeframe]
+            # 3. 스토캐스틱 점수 (-2 ~ +2)
+            stoch_data = self.indicator_service.calculate_stochastic(df)
+            if stoch_data:
+                k_percent = stoch_data["k_percent"].iloc[-1]
+                d_percent = stoch_data["d_percent"].iloc[-1]
 
-                if not self.alert_log_service.exists_recent_alert(
-                    symbol, alert_type, "RSI", interval
-                ):
-                    # 🆕 1. RSI 신호를 데이터베이스에 저장
-                    saved_signal = self.signal_storage_service.save_rsi_signal(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        rsi_value=current_rsi,
-                        current_price=df["close"].iloc[-1],
-                        signal_type_suffix=rsi_signal,
-                        volume=(
-                            int(df["volume"].iloc[-1])
-                            if "volume" in df.columns
-                            and not pd.isna(df["volume"].iloc[-1])
-                            else None
-                        ),
-                    )
+                if k_percent >= 80 and d_percent >= 80:
+                    scores["stochastic"] = -2  # 과매수
+                elif k_percent >= 70 or d_percent >= 70:
+                    scores["stochastic"] = -1
+                elif k_percent <= 20 and d_percent <= 20:
+                    scores["stochastic"] = 2  # 과매도
+                elif k_percent <= 30 or d_percent <= 30:
+                    scores["stochastic"] = 1
+                else:
+                    scores["stochastic"] = 0  # 중립
 
-                    # 2. 텔레그램 알림 전송
-                    send_rsi_alert_message(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        current_rsi=current_rsi,
-                        signal_type=rsi_signal,
-                        now=now,
-                    )
-
-                    # 🆕 3. 알림 발송 상태 업데이트
-                    if saved_signal:
-                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
-
-                    # 4. 기존 알림 로그 저장 (호환성 유지)
-                    self.alert_log_service.save_alert(
-                        symbol=symbol,
-                        alert_type=alert_type,
-                        base_type="RSI",
-                        base_price=current_rsi,
-                        current_price=df["close"].iloc[-1],
-                        threshold_percent=0.0,
-                        actual_percent=current_rsi,
-                        base_time=now,
-                        triggered_at=now,
-                    )
-
-                    print(f"📨 {symbol} RSI {rsi_signal} 알림 전송 완료")
-                    if saved_signal:
-                        print(f"💾 RSI 신호 DB 저장 완료 (ID: {saved_signal.id})")
-
-        except Exception as e:
-            print(f"❌ RSI 분석 실패: {e}")
-
-    def _check_bollinger_bands(self, symbol: str, df, timeframe: str, now: datetime):
-        """볼린저 밴드 신호 체크"""
-        try:
-            # 볼린저 밴드 계산
-            bollinger = self.indicator_service.calculate_bollinger_bands(df["close"])
-            if not bollinger or len(bollinger["upper"]) < 2:
-                return
-
+            # 4. 이동평균 점수 (-2 ~ +2)
             current_price = df["close"].iloc[-1]
-            prev_price = df["close"].iloc[-2] if len(df) >= 2 else current_price
-
-            current_upper = bollinger["upper"].iloc[-1]
-            current_lower = bollinger["lower"].iloc[-1]
-            prev_upper = bollinger["upper"].iloc[-2]
-            prev_lower = bollinger["lower"].iloc[-2]
-
-            # 볼린저 밴드 신호 감지
-            bollinger_signal = self.indicator_service.detect_bollinger_signals(
-                current_price,
-                current_upper,
-                current_lower,
-                prev_price,
-                prev_upper,
-                prev_lower,
+            sma20 = self.indicator_service.calculate_moving_average(
+                df["close"], 20, "SMA"
+            )
+            sma50 = self.indicator_service.calculate_moving_average(
+                df["close"], 50, "SMA"
             )
 
-            if bollinger_signal:
-                # 중복 알림 방지 체크
-                alert_type = f"BOLLINGER_{bollinger_signal}"
-                interval = ALERT_INTERVALS["BOLLINGER_ALERT"][timeframe]
+            if not sma20.empty and not sma50.empty:
+                sma20_current = sma20.iloc[-1]
+                sma50_current = sma50.iloc[-1]
 
-                if not self.alert_log_service.exists_recent_alert(
-                    symbol, alert_type, "BOLLINGER", interval
-                ):
-                    # 🆕 1. 볼린저 밴드 신호를 데이터베이스에 저장
-                    band_value = (
-                        current_upper if "upper" in bollinger_signal else current_lower
-                    )
-                    saved_signal = self.signal_storage_service.save_bollinger_signal(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        current_price=current_price,
-                        band_value=band_value,
-                        signal_type_suffix=bollinger_signal,
-                        volume=(
-                            int(df["volume"].iloc[-1])
-                            if "volume" in df.columns
-                            and not pd.isna(df["volume"].iloc[-1])
-                            else None
-                        ),
-                    )
+                if current_price > sma20_current > sma50_current:
+                    scores["moving_average"] = 2  # 강한 상승 추세
+                elif current_price > sma20_current:
+                    scores["moving_average"] = 1  # 상승 추세
+                elif current_price < sma20_current < sma50_current:
+                    scores["moving_average"] = -2  # 강한 하락 추세
+                elif current_price < sma20_current:
+                    scores["moving_average"] = -1  # 하락 추세
+                else:
+                    scores["moving_average"] = 0  # 중립
 
-                    # 2. 텔레그램 알림 전송
-                    send_bollinger_alert_message(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        current_price=current_price,
-                        upper_band=current_upper,
-                        lower_band=current_lower,
-                        signal_type=bollinger_signal,
-                        now=now,
-                    )
+            # 5. 거래량 점수 (-1 ~ +1)
+            volume_sma = self.indicator_service.calculate_volume_sma(df["volume"])
+            if not volume_sma.empty:
+                current_volume = df["volume"].iloc[-1]
+                avg_volume = volume_sma.iloc[-1]
+                volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
 
-                    # 🆕 3. 알림 발송 상태 업데이트
-                    if saved_signal:
-                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
+                if volume_ratio >= 1.5:
+                    scores["volume"] = 1  # 거래량 증가 (긍정적)
+                elif volume_ratio <= 0.7:
+                    scores["volume"] = -1  # 거래량 감소 (부정적)
+                else:
+                    scores["volume"] = 0  # 정상
 
-                    # 4. 기존 알림 로그 저장 (호환성 유지)
-                    self.alert_log_service.save_alert(
-                        symbol=symbol,
-                        alert_type=alert_type,
-                        base_type="BOLLINGER",
-                        base_price=band_value,
-                        current_price=current_price,
-                        threshold_percent=0.0,
-                        actual_percent=0.0,
-                        base_time=now,
-                        triggered_at=now,
-                    )
+            # 종합 점수 계산
+            total_score = sum(scores.values())
+            max_score = len(scores) * 2  # 최대 점수
+            min_score = len(scores) * -2  # 최소 점수
 
-                    print(f"📨 {symbol} 볼린저 밴드 {bollinger_signal} 알림 전송 완료")
-                    if saved_signal:
-                        print(
-                            f"💾 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal.id})"
-                        )
+            # 심리 상태 결정
+            if total_score >= 4:
+                sentiment = "매우 강세"
+                emoji = "🚀"
+            elif total_score >= 2:
+                sentiment = "강세"
+                emoji = "📈"
+            elif total_score >= 1:
+                sentiment = "약간 강세"
+                emoji = "🔼"
+            elif total_score <= -4:
+                sentiment = "매우 약세"
+                emoji = "💥"
+            elif total_score <= -2:
+                sentiment = "약세"
+                emoji = "📉"
+            elif total_score <= -1:
+                sentiment = "약간 약세"
+                emoji = "🔽"
+            else:
+                sentiment = "중립"
+                emoji = "🔄"
 
-        except Exception as e:
-            print(f"❌ 볼린저 밴드 분석 실패: {e}")
-
-    def _check_cross_signals(self, symbol: str, df, timeframe: str, now: datetime):
-        """골든크로스/데드크로스 신호 체크 (일봉에서만)"""
-        try:
-            # 50일선과 200일선 계산
-            ma_50 = self.indicator_service.calculate_moving_average(df["close"], 50)
-            ma_200 = self.indicator_service.calculate_moving_average(df["close"], 200)
-
-            if ma_50.empty or ma_200.empty:
-                return
-
-            # 크로스 신호 감지
-            cross_signal = self.indicator_service.detect_cross_signals(ma_50, ma_200)
-
-            if cross_signal:
-                # 중복 알림 방지 체크 (크로스는 매우 중요한 신호라서 짧은 간격)
-                alert_type = cross_signal.upper()
-                interval = ALERT_INTERVALS["CROSS_SIGNAL"][timeframe]
-
-                if not self.alert_log_service.exists_recent_alert(
-                    symbol, alert_type, "CROSS", interval
-                ):
-                    current_50 = ma_50.iloc[-1]
-                    current_200 = ma_200.iloc[-1]
-                    current_price = df["close"].iloc[-1]
-
-                    # 🆕 1. 크로스 신호를 데이터베이스에 저장
-                    saved_signal = self.signal_storage_service.save_cross_signal(
-                        symbol=symbol,
-                        cross_type=cross_signal,
-                        ma_short_value=current_50,
-                        ma_long_value=current_200,
-                        current_price=current_price,
-                        volume=(
-                            int(df["volume"].iloc[-1])
-                            if "volume" in df.columns
-                            and not pd.isna(df["volume"].iloc[-1])
-                            else None
-                        ),
-                    )
-
-                    # 2. 텔레그램 알림 전송
-                    if cross_signal == "golden_cross":
-                        send_golden_cross_message(
-                            symbol=symbol, ma_50=current_50, ma_200=current_200, now=now
-                        )
-                    else:  # dead_cross
-                        send_dead_cross_message(
-                            symbol=symbol, ma_50=current_50, ma_200=current_200, now=now
-                        )
-
-                    # 🆕 3. 알림 발송 상태 업데이트
-                    if saved_signal:
-                        self.signal_storage_service.mark_alert_sent(saved_signal.id)
-
-                    # 4. 기존 알림 로그 저장 (호환성 유지)
-                    self.alert_log_service.save_alert(
-                        symbol=symbol,
-                        alert_type=alert_type,
-                        base_type="CROSS",
-                        base_price=current_200,
-                        current_price=current_price,
-                        threshold_percent=0.0,
-                        actual_percent=((current_50 - current_200) / current_200) * 100,
-                        base_time=now,
-                        triggered_at=now,
-                    )
-
-                    print(f"📨 {symbol} {cross_signal} 알림 전송 완료")
-                    if saved_signal:
-                        print(f"💾 크로스 신호 DB 저장 완료 (ID: {saved_signal.id})")
-
-        except Exception as e:
-            print(f"❌ 크로스 신호 분석 실패: {e}")
-
-    # =========================================================================
-    # 통합 모니터링 함수
-    # =========================================================================
-
-    def run_all_technical_monitoring(self):
-        """
-        모든 기술적 지표 모니터링을 한번에 실행
-
-        실행 순서:
-        1. 나스닥 지수 일봉 (기술주 중심)
-        2. S&P 500 지수 일봉 (전체 시장)
-        """
-        try:
-            print("🚀 주요 지수 기술적 지표 모니터링 시작")
-            start_time = datetime.utcnow()
-
-            # 1. 나스닥 지수 일봉 분석 (기술주 중심)
-            self.check_nasdaq_index_daily()
-
-            # 2. S&P 500 지수 일봉 분석 (전체 시장)
-            self.check_sp500_index_daily()
-
-            end_time = datetime.utcnow()
-            duration = (end_time - start_time).total_seconds()
-
-            print(
-                f"✅ 주요 지수 기술적 지표 모니터링 완료 (소요시간: {duration:.1f}초)"
+            # 비율 계산 (0~1)
+            score_range = max_score - min_score
+            normalized_score = (
+                (total_score - min_score) / score_range if score_range > 0 else 0.5
             )
 
-        except Exception as e:
-            print(f"❌ 주요 지수 기술적 지표 모니터링 실패: {e}")
-
-    def get_current_technical_status(
-        self, symbol: str, timeframe: str
-    ) -> Dict[str, Any]:
-        """
-        현재 기술적 지표 상태 조회 (API 엔드포인트용)
-
-        Args:
-            symbol: 심볼 (NQ=F, ^IXIC)
-            timeframe: 시간대 (1min, 15min, 1day)
-
-        Returns:
-            현재 기술적 지표 상태 딕셔너리
-        """
-        try:
-            # 시간대별 데이터 가져오기
-            if timeframe == "1min":
-                df = self.yahoo_client.get_minute_data(symbol, "1d")
-            elif timeframe == "15min":
-                df = self.yahoo_client.get_15minute_data(symbol, "5d")
-            else:  # 1day
-                df = self.yahoo_client.get_daily_data(symbol, "1y")
-
-            if df is None or len(df) < 50:
-                return {"error": "데이터 부족"}
-
-            # 종합 분석 실행
-            analysis = self.indicator_service.analyze_all_indicators(df)
-
-            # 심볼 정보 추가
-            symbol_info = TECHNICAL_SYMBOLS.get(symbol, {})
-            analysis["symbol_info"] = {
+            return {
                 "symbol": symbol,
-                "name": symbol_info.get("name", symbol),
-                "category": symbol_info.get("category", "기타"),
-                "timeframe": timeframe,
+                "timestamp": datetime.now(),
+                "sentiment": sentiment,
+                "emoji": emoji,
+                "score": total_score,
+                "max_score": max_score,
+                "min_score": min_score,
+                "ratio": normalized_score,
+                "individual_scores": scores,
             }
 
-            return analysis
+        except Exception as e:
+            print(f"❌ {symbol} 시장 심리 분석 실패: {e}")
+            return None
+
+    def run_daily_comprehensive_analysis(self):
+        """
+        일일 종합 분석 실행 (기존 + 새로 추가된 전략 통합)
+        
+        한시간마다 실행되는 핵심 분석:
+        - 나스닥 지수 (^IXIC) 
+        - S&P 500 지수 (^GSPC)
+        
+        분석 내용:
+        기존: 50일선, 200일선, 골든크로스, RSI
+        신규: MACD, 스토캐스틱, 거래량, 고급 이동평균, 시장심리
+        """
+        try:
+            print("📊 일일 종합 기술적 분석 시작 (기존 + 신규 전략)")
+
+            # 주요 지수들 분석 (나스닥, S&P500 중심)
+            symbols = ["^IXIC", "^GSPC"]  # 핵심 2개 지수
+
+            for symbol in symbols:
+                symbol_name = "나스닥" if symbol == "^IXIC" else "S&P 500"
+                print(f"\n� {symbol} }({symbol_name}) 종합 분석 중...")
+
+                # 종합 신호 분석 (모든 전략 포함)
+                comprehensive_result = self.monitor_comprehensive_signals(symbol)
+
+                # 시장 심리 분석
+                sentiment_result = self.monitor_market_sentiment(symbol)
+
+                if comprehensive_result and sentiment_result:
+                    signals = comprehensive_result.get("signals", {})
+                    indicators = comprehensive_result.get("indicators", {})
+
+                    print(f"📊 {symbol_name} 분석 완료:")
+                    print(f"  💰 현재가: {comprehensive_result['current_price']:.2f}")
+                    print(
+                        f"  📈 변화율: {comprehensive_result['price_change_pct']:+.2f}%"
+                    )
+                    print(f"  🔔 신호: {len(signals)}개")
+                    print(
+                        f"  🧠 심리: {sentiment_result['sentiment']} {sentiment_result['emoji']}"
+                    )
+
+                    # 주요 지표 현재값 요약
+                    if "rsi" in indicators:
+                        rsi_val = indicators["rsi"]["current"]
+                        print(f"  📊 RSI: {rsi_val:.1f}")
+
+                    if "macd" in indicators:
+                        macd_val = indicators["macd"]["current_macd"]
+                        signal_val = indicators["macd"]["current_signal"]
+                        trend = "상승" if macd_val > signal_val else "하락"
+                        print(f"  📈 MACD: {trend} 모멘텀")
+
+                    if "stochastic" in indicators:
+                        k_val = indicators["stochastic"]["k_percent"]
+                        d_val = indicators["stochastic"]["d_percent"]
+                        print(f"  🔄 스토캐스틱: %K={k_val:.1f}, %D={d_val:.1f}")
+
+                    if "volume" in indicators:
+                        vol_ratio = indicators["volume"]["ratio"]
+                        print(f"  📊 거래량: {vol_ratio:.1f}배")
+
+                    # 중요한 신호가 있으면 상세 출력
+                    if signals:
+                        print(f"  ⚠️  감지된 신호:")
+                        for signal_type, signal_value in signals.items():
+                            print(f"    - {signal_type.upper()}: {signal_value}")
+
+            print("\n✅ 일일 종합 분석 완료 (기존 + 신규 전략)")
 
         except Exception as e:
-            print(f"❌ 기술적 지표 상태 조회 실패: {e}")
-            return {"error": str(e)}
+            print(f"❌ 일일 종합 분석 실패: {e}")
 
-    # =========================================================================
-    # 테스트 함수들
-    # =========================================================================
-
-    def test_all_technical_alerts(self):
-        """
-        주요 지수 기술적 지표 알림 테스트
-
-        나스닥 지수(^IXIC)와 S&P 500 지수(^GSPC)의 일봉 기반 신호들을 테스트합니다.
-        실제 돌파가 없어도 가짜 데이터로 모든 알림 타입을 테스트해볼 수 있습니다.
-        """
-        from datetime import datetime
-
-        print("🧪 주요 지수 기술적 지표 알림 테스트 시작")
-        now = datetime.utcnow()
-
+    def monitor_moving_average_signals(
+        self, symbol: str, timeframe: str = "1d"
+    ) -> List[Dict[str, Any]]:
+        """이동평균선 신호 모니터링"""
         try:
-            # 1. 나스닥 지수 50일선 상향 돌파 테스트
-            print("📈 1. 나스닥 지수 50일선 상향 돌파 테스트")
+            print(f"📊 {symbol} 이동평균선 신호 모니터링 ({timeframe})")
 
-            # 🆕 DB에 신호 저장
-            saved_signal_1 = self.signal_storage_service.save_ma_breakout_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                ma_period=50,
-                breakout_direction="up",
-                current_price=18520.75,
-                ma_value=18480.25,
-                volume=1500000,
-            )
-
-            # 텔레그램 알림 전송
-            send_ma_breakout_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                ma_period=50,
-                current_price=18520.75,
-                ma_value=18480.25,
-                signal_type="breakout_up",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_1:
-                self.signal_storage_service.mark_alert_sent(saved_signal_1.id)
-                print(
-                    f"💾 나스닥 50일선 돌파 신호 DB 저장 완료 (ID: {saved_signal_1.id})"
-                )
-
-            # 2. 나스닥 지수 200일선 하향 이탈 테스트
-            print("📉 2. 나스닥 지수 200일선 하향 이탈 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_2 = self.signal_storage_service.save_ma_breakout_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                ma_period=200,
-                breakout_direction="down",
-                current_price=18350.25,
-                ma_value=18420.75,
-                volume=1800000,
-            )
-
-            # 텔레그램 알림 전송
-            send_ma_breakout_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                ma_period=200,
-                current_price=18350.25,
-                ma_value=18420.75,
-                signal_type="breakout_down",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_2:
-                self.signal_storage_service.mark_alert_sent(saved_signal_2.id)
-                print(
-                    f"💾 나스닥 200일선 이탈 신호 DB 저장 완료 (ID: {saved_signal_2.id})"
-                )
-
-            # 3. 나스닥 지수 RSI 과매수 테스트
-            print("🔴 3. 나스닥 지수 RSI 과매수 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_3 = self.signal_storage_service.save_rsi_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                rsi_value=75.8,
-                current_price=18520.75,
-                signal_type_suffix="overbought",
-                volume=1600000,
-            )
-
-            # 텔레그램 알림 전송
-            send_rsi_alert_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_rsi=75.8,
-                signal_type="overbought",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_3:
-                self.signal_storage_service.mark_alert_sent(saved_signal_3.id)
-                print(
-                    f"💾 나스닥 RSI 과매수 신호 DB 저장 완료 (ID: {saved_signal_3.id})"
-                )
-
-            # 4. 나스닥 지수 RSI 과매도 테스트
-            print("🟢 4. 나스닥 지수 RSI 과매도 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_4 = self.signal_storage_service.save_rsi_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                rsi_value=28.3,
-                current_price=18280.50,
-                signal_type_suffix="oversold",
-                volume=2000000,
-            )
-
-            # 텔레그램 알림 전송
-            send_rsi_alert_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_rsi=28.3,
-                signal_type="oversold",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_4:
-                self.signal_storage_service.mark_alert_sent(saved_signal_4.id)
-                print(
-                    f"💾 나스닥 RSI 과매도 신호 DB 저장 완료 (ID: {saved_signal_4.id})"
-                )
-
-            # 5. 나스닥 지수 볼린저 밴드 상단 터치 테스트
-            print("🔴 5. 나스닥 지수 볼린저 밴드 상단 터치 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_5 = self.signal_storage_service.save_bollinger_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_price=18620.50,
-                band_value=18625.00,
-                signal_type_suffix="touch_upper",
-                volume=1400000,
-            )
-
-            # 텔레그램 알림 전송
-            send_bollinger_alert_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_price=18620.50,
-                upper_band=18625.00,
-                lower_band=18280.00,
-                signal_type="touch_upper",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_5:
-                self.signal_storage_service.mark_alert_sent(saved_signal_5.id)
-                print(
-                    f"💾 나스닥 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_5.id})"
-                )
-
-            # 6. 나스닥 지수 볼린저 밴드 하단 터치 테스트
-            print("🟢 6. 나스닥 지수 볼린저 밴드 하단 터치 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_6 = self.signal_storage_service.save_bollinger_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_price=18285.25,
-                band_value=18280.00,
-                signal_type_suffix="touch_lower",
-                volume=1700000,
-            )
-
-            # 텔레그램 알림 전송
-            send_bollinger_alert_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_price=18285.25,
-                upper_band=18620.00,
-                lower_band=18280.00,
-                signal_type="touch_lower",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_6:
-                self.signal_storage_service.mark_alert_sent(saved_signal_6.id)
-                print(
-                    f"💾 나스닥 볼린저 밴드 신호 DB 저장 완료 (ID: {saved_signal_6.id})"
-                )
-
-            # 7. 골든크로스 테스트
-            print("🚀 7. 골든크로스 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_7 = self.signal_storage_service.save_cross_signal(
-                symbol="^IXIC",
-                cross_type="golden_cross",
-                ma_short_value=18520.75,
-                ma_long_value=18480.25,
-                current_price=18500.00,
-                volume=1000000,
-            )
-
-            # 텔레그램 알림 전송
-            send_golden_cross_message(
-                symbol="^IXIC", ma_50=18520.75, ma_200=18480.25, now=now
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_7:
-                self.signal_storage_service.mark_alert_sent(saved_signal_7.id)
-                print(f"💾 골든크로스 신호 DB 저장 완료 (ID: {saved_signal_7.id})")
-
-            # 8. 데드크로스 테스트
-            print("💀 8. 데드크로스 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_8 = self.signal_storage_service.save_cross_signal(
-                symbol="^IXIC",
-                cross_type="dead_cross",
-                ma_short_value=18350.25,
-                ma_long_value=18420.75,
-                current_price=18380.00,
-                volume=1200000,
-            )
-
-            # 텔레그램 알림 전송
-            send_dead_cross_message(
-                symbol="^IXIC", ma_50=18350.25, ma_200=18420.75, now=now
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_8:
-                self.signal_storage_service.mark_alert_sent(saved_signal_8.id)
-                print(f"💾 데드크로스 신호 DB 저장 완료 (ID: {saved_signal_8.id})")
-
-            # 9. RSI 상승 모멘텀 테스트
-            print("📈 9. RSI 상승 모멘텀 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_9 = self.signal_storage_service.save_rsi_signal(
-                symbol="^IXIC",
-                timeframe="1day",
-                rsi_value=55.2,
-                current_price=18500.00,
-                signal_type_suffix="bullish",
-                volume=800000,
-            )
-
-            # 텔레그램 알림 전송
-            send_rsi_alert_message(
-                symbol="^IXIC",
-                timeframe="1day",
-                current_rsi=55.2,
-                signal_type="bullish",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_9:
-                self.signal_storage_service.mark_alert_sent(saved_signal_9.id)
-                print(f"💾 RSI 상승 모멘텀 신호 DB 저장 완료 (ID: {saved_signal_9.id})")
-
-            # 10. S&P 500 200일선 상향 돌파 테스트
-            print("🚀 10. S&P 500 200일선 상향 돌파 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_10 = self.signal_storage_service.save_ma_breakout_signal(
-                symbol="^GSPC",
-                timeframe="1day",
-                ma_period=200,
-                breakout_direction="up",
-                current_price=5850.75,
-                ma_value=5800.25,
-                volume=2500000,
-            )
-
-            # 텔레그램 알림 전송
-            send_ma_breakout_message(
-                symbol="^GSPC",
-                timeframe="1day",
-                ma_period=200,
-                current_price=5850.75,
-                ma_value=5800.25,
-                signal_type="breakout_up",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_10:
-                self.signal_storage_service.mark_alert_sent(saved_signal_10.id)
-                print(f"💾 S&P 500 신호 DB 저장 완료 (ID: {saved_signal_10.id})")
-
-            # 11. S&P 500 골든크로스 테스트
-            print("🌟 11. S&P 500 골든크로스 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_11 = self.signal_storage_service.save_cross_signal(
-                symbol="^GSPC",
-                cross_type="golden_cross",
-                ma_short_value=5820.50,
-                ma_long_value=5800.25,
-                current_price=5850.75,
-                volume=2800000,
-            )
-
-            # 텔레그램 알림 전송
-            send_golden_cross_message(
-                symbol="^GSPC", ma_50=5820.50, ma_200=5800.25, now=now
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_11:
-                self.signal_storage_service.mark_alert_sent(saved_signal_11.id)
-                print(
-                    f"💾 S&P 500 골든크로스 신호 DB 저장 완료 (ID: {saved_signal_11.id})"
-                )
-
-            # 12. S&P 500 RSI 과매수 테스트
-            print("🔴 12. S&P 500 RSI 과매수 테스트")
-
-            # 🆕 DB에 신호 저장
-            saved_signal_12 = self.signal_storage_service.save_rsi_signal(
-                symbol="^GSPC",
-                timeframe="1day",
-                rsi_value=72.5,
-                current_price=5850.75,
-                signal_type_suffix="overbought",
-                volume=2200000,
-            )
-
-            # 텔레그램 알림 전송
-            send_rsi_alert_message(
-                symbol="^GSPC",
-                timeframe="1day",
-                current_rsi=72.5,
-                signal_type="overbought",
-                now=now,
-            )
-
-            # 알림 발송 상태 업데이트
-            if saved_signal_12:
-                self.signal_storage_service.mark_alert_sent(saved_signal_12.id)
-                print(f"💾 S&P 500 RSI 신호 DB 저장 완료 (ID: {saved_signal_12.id})")
-
-            print("✅ 모든 기술적 지표 알림 테스트 완료!")
-            print("📱 텔레그램에서 12개의 테스트 알림을 확인해보세요.")
-            print("🎯 테스트 신호 구성:")
-            print("   - 나스닥 지수 (^IXIC): 골든크로스, 데드크로스, RSI")
-            print("   - S&P 500 지수 (^GSPC): 200일선 돌파, 골든크로스, RSI")
-            print("   - 기존 테스트 신호들 (호환성 유지)")
-
-        except Exception as e:
-            print(f"❌ 알림 테스트 실패: {e}")
-
-    def test_single_alert(self, alert_type: str = "ma_breakout"):
-        """
-        단일 알림 테스트
-
-        Args:
-            alert_type: 테스트할 알림 타입
-            - "ma_breakout": 이동평균선 돌파
-            - "rsi": RSI 신호
-            - "bollinger": 볼린저 밴드
-            - "golden_cross": 골든크로스
-            - "dead_cross": 데드크로스
-        """
-        from datetime import datetime
-
-        now = datetime.utcnow()
-
-        try:
-            if alert_type == "ma_breakout":
-                print("📈 나스닥 지수 50일선 돌파 테스트")
-                send_ma_breakout_message(
-                    symbol="^IXIC",
-                    timeframe="1day",
-                    ma_period=50,
-                    current_price=18580.50,
-                    ma_value=18550.25,
-                    signal_type="breakout_up",
-                    now=now,
-                )
-
-            elif alert_type == "rsi":
-                print("🔴 나스닥 지수 RSI 과매수 테스트")
-                send_rsi_alert_message(
-                    symbol="^IXIC",
-                    timeframe="1day",
-                    current_rsi=72.5,
-                    signal_type="overbought",
-                    now=now,
-                )
-
-            elif alert_type == "bollinger":
-                print("🟢 나스닥 지수 볼린저 밴드 하단 터치 테스트")
-                send_bollinger_alert_message(
-                    symbol="^IXIC",
-                    timeframe="1day",
-                    current_price=18275.25,
-                    upper_band=18620.00,
-                    lower_band=18270.00,
-                    signal_type="touch_lower",
-                    now=now,
-                )
-
-            elif alert_type == "golden_cross":
-                print("🚀 골든크로스 테스트")
-                send_golden_cross_message(
-                    symbol="^IXIC", ma_50=18550.75, ma_200=18520.25, now=now
-                )
-
-            elif alert_type == "dead_cross":
-                print("💀 데드크로스 테스트")
-                send_dead_cross_message(
-                    symbol="^IXIC", ma_50=18380.25, ma_200=18450.75, now=now
-                )
-
+            # 데이터 가져오기
+            if timeframe == "1d":
+                df = self.yahoo_client.get_daily_data(symbol, period="1y")
             else:
-                print(f"❌ 알 수 없는 알림 타입: {alert_type}")
-                return
+                df = self.yahoo_client.get_intraday_data(
+                    symbol, interval=timeframe, period="5d"
+                )
 
-            print(f"✅ {alert_type} 테스트 완료!")
+            if df is None or len(df) < 200:
+                print(f"❌ {symbol} 데이터 부족")
+                return []
+
+            # 컬럼명을 소문자로 변환
+            df.columns = df.columns.str.lower()
+
+            signals = []
+            current_price = df["close"].iloc[-1]
+
+            # SMA 신호 체크
+            sma_periods = MA_PERIODS["SMA"]
+            for period in sma_periods:
+                sma = self.indicator_service.calculate_moving_average(
+                    df["close"], period, "SMA"
+                )
+                if not sma.empty and len(sma) >= 2:
+                    current_sma = sma.iloc[-1]
+                    prev_sma = sma.iloc[-2]
+
+                    # 돌파 신호 감지
+                    if df["close"].iloc[-2] <= prev_sma and current_price > current_sma:
+                        signals.append(
+                            {
+                                "type": "SMA_BREAKOUT_UP",
+                                "period": period,
+                                "price": current_price,
+                                "ma_value": current_sma,
+                                "timestamp": datetime.now(),
+                            }
+                        )
+                    elif (
+                        df["close"].iloc[-2] >= prev_sma and current_price < current_sma
+                    ):
+                        signals.append(
+                            {
+                                "type": "SMA_BREAKOUT_DOWN",
+                                "period": period,
+                                "price": current_price,
+                                "ma_value": current_sma,
+                                "timestamp": datetime.now(),
+                            }
+                        )
+
+            return signals
 
         except Exception as e:
-            print(f"❌ {alert_type} 테스트 실패: {e}")
+            print(f"❌ {symbol} 이동평균선 모니터링 실패: {e}")
+            return []
+
+    def monitor_rsi_signals(
+        self, symbol: str, timeframe: str = "1d"
+    ) -> List[Dict[str, Any]]:
+        """RSI 신호 모니터링"""
+        try:
+            print(f"📊 {symbol} RSI 신호 모니터링 ({timeframe})")
+
+            # 데이터 가져오기
+            if timeframe == "1d":
+                df = self.yahoo_client.get_daily_data(symbol, period="3mo")
+            else:
+                df = self.yahoo_client.get_intraday_data(
+                    symbol, interval=timeframe, period="5d"
+                )
+
+            if df is None or len(df) < 50:
+                print(f"❌ {symbol} 데이터 부족")
+                return []
+
+            # 컬럼명을 소문자로 변환
+            df.columns = df.columns.str.lower()
+
+            signals = []
+
+            # RSI 계산
+            rsi = self.indicator_service.calculate_rsi(df["close"])
+            if not rsi.empty and len(rsi) >= 2:
+                current_rsi = rsi.iloc[-1]
+                prev_rsi = rsi.iloc[-2]
+
+                # 과매수/과매도 신호
+                if prev_rsi <= 70 and current_rsi > 70:
+                    signals.append(
+                        {
+                            "type": "RSI_OVERBOUGHT",
+                            "rsi_value": current_rsi,
+                            "timestamp": datetime.now(),
+                        }
+                    )
+                elif prev_rsi >= 30 and current_rsi < 30:
+                    signals.append(
+                        {
+                            "type": "RSI_OVERSOLD",
+                            "rsi_value": current_rsi,
+                            "timestamp": datetime.now(),
+                        }
+                    )
+
+            return signals
+
+        except Exception as e:
+            print(f"❌ {symbol} RSI 모니터링 실패: {e}")
+            return []

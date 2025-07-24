@@ -48,7 +48,10 @@ async def test_all_alerts():
 @router.post("/telegram-alerts/ma-breakout", summary="이동평균선 돌파 알림 테스트")
 async def test_ma_breakout_alert(
     symbol: str = Query("^IXIC", description="심볼 (예: ^IXIC, ^GSPC)"),
-    ma_period: int = Query(200, description="이동평균 기간 (예: 50, 200)"),
+    ma_period: int = Query(
+        200, description="이동평균 기간 (예: 5, 10, 21, 50, 100, 200)"
+    ),
+    ma_type: str = Query("SMA", description="이동평균 유형 (SMA, EMA)"),
     direction: str = Query("up", description="돌파 방향 (up 또는 down)"),
 ):
     """
