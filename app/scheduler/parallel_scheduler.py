@@ -319,7 +319,8 @@ def start_parallel_scheduler():
         initialize_recent_signals_tracking,
     )
 
-    scheduler.add_job(run_daily_index_analysis, "interval", hours=1)
+    # 일일 지수 분석은 scheduler_runner.py에서 오전 7시에만 실행
+    # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)  # 제거됨
     scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
     scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
 
