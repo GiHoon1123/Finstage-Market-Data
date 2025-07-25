@@ -1,8 +1,9 @@
 import requests
 import random
 import pandas as pd
+import time
 from typing import Optional, Tuple, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class YahooPriceClient:
@@ -382,8 +383,6 @@ class YahooPriceClient:
 
     def _get_historical_daily_data(self, symbol: str) -> Optional[pd.DataFrame]:
         """25년치 과거 일봉 데이터를 기간별로 분할 수집 (2000년~현재)"""
-        from datetime import datetime, timedelta
-        import time
 
         print(f"📊 {symbol} 25년치 과거 데이터 수집 시작 (2000년~현재)...")
 

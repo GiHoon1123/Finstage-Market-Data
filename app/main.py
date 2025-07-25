@@ -26,6 +26,12 @@ import os
 from dotenv import load_dotenv
 from app.scheduler.scheduler_runner import start_scheduler
 
+# 성능 모니터링 관련 import (함수 내부에서 사용)
+try:
+    from app.common.utils.performance_monitor import stop_monitoring
+except ImportError:
+    stop_monitoring = None
+
 # 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
 mode = os.getenv("ENV_MODE", "dev")
 env_file = f".env.{mode}"
@@ -109,13 +115,9 @@ def startup_event():
 @app.on_event("shutdown")
 def shutdown_event():
     # 성능 모니터링 시스템 종료
-    try:
-        from app.common.utils.performance_monitor import stop_monitoring
-
+    if stop_monitoring:
         stop_monitoring()
         print("✅ 성능 모니터링 시스템 종료됨")
-    except ImportError:
-        pass
 
     # 성능 모니터링 시스템 시작
     from app.common.utils.performance_monitor import start_monitoring

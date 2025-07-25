@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 import yfinance as yf
 from app.common.utils.api_client import adaptive_retry
-from app.common.utils.parallel_executor import measure_execution_time
+from app.common.utils.parallel_executor import measure_execution_time, ParallelExecutor
 
 
 class OptimizedYahooPriceClient:
@@ -80,8 +80,6 @@ class OptimizedYahooPriceClient:
         self, symbols: List[str], period: str = "1mo", interval: str = "1d"
     ) -> Dict[str, pd.DataFrame]:
         """여러 심볼 데이터 한번에 조회 (병렬 처리)"""
-        from app.common.utils.parallel_executor import ParallelExecutor
-
         executor = ParallelExecutor(max_workers=5)
 
         def fetch_data(symbol):

@@ -1,13 +1,14 @@
 import os
 import requests
+import traceback
+import httpx
 from datetime import datetime, timezone, timedelta
+from dotenv import load_dotenv
 from app.common.constants.symbol_names import (
     SYMBOL_CATEGORY_MAP,
     SYMBOL_NAME_MAP,
     SYMBOL_PRICE_MAP,
 )
-import traceback
-import httpx
 
 
 def format_time_with_kst(utc_time: datetime) -> str:
@@ -153,8 +154,6 @@ def send_drop_from_high_message(
 def _send_basic(symbol: str, message: str, is_news: bool = False):
     # .env.test 파일에서 환경변수 로드
     try:
-        from dotenv import load_dotenv
-
         load_dotenv(".env.test")
     except ImportError:
         pass  # python-dotenv가 없으면 시스템 환경변수 사용
@@ -500,8 +499,6 @@ def send_telegram_message(message: str):
     """
     # .env.test 파일에서 환경변수 로드
     try:
-        from dotenv import load_dotenv
-
         load_dotenv(".env.test")
     except ImportError:
         pass  # python-dotenv가 없으면 시스템 환경변수 사용
@@ -545,8 +542,6 @@ def send_telegram_message(message: str):
         message: 전송할 메시지 내용
     """
     # main.py와 동일한 방식으로 환경변수 로드
-    from dotenv import load_dotenv
-
     mode = os.getenv("ENV_MODE", "dev")
     env_file = f".env.{mode}"
     load_dotenv(dotenv_path=env_file)

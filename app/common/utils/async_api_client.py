@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 
-from app.common.utils.async_executor import async_timed, retry_async
+from app.common.utils.async_executor import async_timed, retry_async, AsyncExecutor
 
 
 class AsyncApiClient:
@@ -110,7 +110,6 @@ class AsyncApiClient:
         Returns:
             각 URL의 응답 데이터 리스트
         """
-        from app.common.utils.async_executor import AsyncExecutor
 
         await self._ensure_session()
 

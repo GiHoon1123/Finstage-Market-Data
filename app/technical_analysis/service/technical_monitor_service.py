@@ -31,6 +31,7 @@ from app.common.utils.telegram_notifier import (
     send_bollinger_alert_message,
     send_golden_cross_message,
     send_dead_cross_message,
+    send_telegram_message,
 )
 
 
@@ -485,8 +486,6 @@ class TechnicalMonitorService:
             텔레그램 전송용 상세 상태 리포트 메시지
         """
         try:
-            from datetime import datetime
-
             symbol_name = "나스닥" if symbol == "^IXIC" else "S&P 500"
             current_time = datetime.now().strftime("%H:%M")
             current_price = comprehensive_result["current_price"]
@@ -985,10 +984,6 @@ class TechnicalMonitorService:
 
                     # 텔레그램으로 상태 리포트 전송
                     try:
-                        from app.common.utils.telegram_notifier import (
-                            send_telegram_message,
-                        )
-
                         # 상태 리포트 전송
                         send_telegram_message(status_report)
                         print(f"📱 {symbol_name} 상태 리포트 텔레그램 전송 완료")

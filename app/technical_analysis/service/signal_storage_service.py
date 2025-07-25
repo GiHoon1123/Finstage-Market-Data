@@ -31,6 +31,9 @@ from app.technical_analysis.infra.model.entity.technical_signals import Technica
 from app.technical_analysis.infra.model.repository.technical_signal_repository import (
     TechnicalSignalRepository,
 )
+from app.technical_analysis.service.outcome_tracking_service import (
+    OutcomeTrackingService,
+)
 
 
 class SignalStorageService:
@@ -141,9 +144,6 @@ class SignalStorageService:
 
             # 🆕 4. 결과 추적 자동 시작 (모든 신호에 대해 실행)
             try:
-                from app.technical_analysis.service.outcome_tracking_service import (
-                    OutcomeTrackingService,
-                )
 
                 outcome_service = OutcomeTrackingService()
                 outcome_service.initialize_outcome_tracking(saved_signal.id)

@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Tuple, Dict, Any
 from datetime import datetime
+from app.common.constants.technical_settings import MA_PERIODS
 
 
 class TechnicalIndicatorService:
@@ -112,7 +113,6 @@ class TechnicalIndicatorService:
             이동평균선들의 딕셔너리
         """
         try:
-            from app.common.constants.technical_settings import MA_PERIODS
 
             ma_results = {}
             prices = df["close"]

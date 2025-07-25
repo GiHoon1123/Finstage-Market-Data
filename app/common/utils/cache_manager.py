@@ -11,6 +11,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Dict, Union
 from datetime import datetime, timedelta
 
+# Redis import (선택적)
+try:
+    import redis
+except ImportError:
+    redis = None
+
 
 class CacheBackend(ABC):
     """캐시 백엔드 추상 클래스"""
@@ -159,14 +165,15 @@ class RedisCacheBackend(CacheBackend):
     def _get_client(self):
         """Redis 클라이언트 가져오기 (지연 초기화)"""
         if self.client is None:
-            try:
-                import redis
-
-                self.client = redis.Redis(**self.connection_params)
-            except ImportError:
+            if redis is None:
                 raise ImportError(
                     "Redis 사용을 위해 'pip install redis' 명령으로 패키지를 설치하세요."
                 )
+
+            try:
+                self.client = redis.Redis(**self.connection_params)
+            except Exception as e:
+                raise ImportError(f"Redis 연결 실패: {e}")
         return self.client
 
     def _get_full_key(self, key: str) -> str:

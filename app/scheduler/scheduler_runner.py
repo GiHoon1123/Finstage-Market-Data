@@ -1,3 +1,6 @@
+import time
+from datetime import datetime, timedelta
+from sqlalchemy import text
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
 from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
@@ -10,6 +13,52 @@ from app.technical_analysis.service.technical_monitor_service import (
 from app.technical_analysis.service.outcome_tracking_service import (
     OutcomeTrackingService,
 )
+from app.technical_analysis.service.daily_data_collection_service import (
+    DailyDataCollectionService,
+)
+from app.technical_analysis.service.historical_data_service import (
+    HistoricalDataService,
+)
+from app.technical_analysis.service.signal_generator_service import (
+    SignalGeneratorService,
+)
+from app.technical_analysis.service.backtesting_service import (
+    BacktestingService,
+)
+from app.technical_analysis.service.pattern_analysis_service import (
+    PatternAnalysisService,
+)
+from app.common.infra.database.config.database_config import (
+    Base,
+    engine,
+    SessionLocal,
+)
+from app.technical_analysis.infra.model.entity.daily_prices import DailyPrice
+from app.technical_analysis.infra.model.entity.technical_signals import (
+    TechnicalSignal,
+)
+from app.technical_analysis.infra.model.entity.signal_outcomes import (
+    SignalOutcome,
+)
+from app.technical_analysis.infra.model.entity.signal_patterns import (
+    SignalPattern,
+)
+from app.technical_analysis.infra.model.repository.technical_signal_repository import (
+    TechnicalSignalRepository,
+)
+from app.technical_analysis.infra.model.repository.technical_signal_repository import (
+    TechnicalSignalRepository,
+)
+from app.technical_analysis.infra.model.entity.daily_prices import DailyPrice
+from app.technical_analysis.infra.model.entity.technical_signals import (
+    TechnicalSignal,
+)
+from app.technical_analysis.infra.model.entity.signal_outcomes import (
+    SignalOutcome,
+)
+from app.technical_analysis.infra.model.entity.signal_patterns import (
+    SignalPattern,
+)
 from app.common.constants.symbol_names import (
     INDEX_SYMBOLS,
     FUTURES_SYMBOLS,
@@ -20,7 +69,15 @@ from app.common.constants.rss_feeds import (
     INVESTING_ECONOMIC_SYMBOLS,
     INVESTING_MARKET_SYMBOLS,
 )
-import time
+from app.common.utils.parallel_executor import (
+    ParallelExecutor,
+    measure_execution_time,
+)
+from app.common.infra.database.config.database_config import (
+    Base,
+    engine,
+    SessionLocal,
+)
 
 
 def run_investing_economic_news():
@@ -72,10 +129,6 @@ def run_yahoo_stock_news():
 
 def run_high_price_update_job():
     print("📈 상장 후 최고가 갱신 시작")
-    from app.common.utils.parallel_executor import (
-        ParallelExecutor,
-        measure_execution_time,
-    )
 
     @measure_execution_time
     def process_symbol(symbol):
@@ -93,10 +146,6 @@ def run_high_price_update_job():
 
 def run_previous_close_snapshot_job():
     print("🕓 전일 종가 저장 시작")
-    from app.common.utils.parallel_executor import (
-        ParallelExecutor,
-        measure_execution_time,
-    )
 
     @measure_execution_time
     def process_symbol(symbol):
@@ -114,10 +163,6 @@ def run_previous_close_snapshot_job():
 
 def run_previous_high_snapshot_job():
     print("🔺 전일 고점 저장 시작")
-    from app.common.utils.parallel_executor import (
-        ParallelExecutor,
-        measure_execution_time,
-    )
 
     @measure_execution_time
     def process_symbol(symbol):
@@ -168,9 +213,6 @@ def run_daily_index_analysis():
     print("📊 주요 지수 상태 리포트 생성 시작")
     try:
         # 🆕 1단계: 최신 일봉 데이터 수집 및 저장
-        from app.technical_analysis.service.daily_data_collection_service import (
-            DailyDataCollectionService,
-        )
 
         collection_service = DailyDataCollectionService()
         collection_result = collection_service.collect_and_save_daily_data(
@@ -320,9 +362,6 @@ def test_collect_historical_data():
     """
     print("📊 1단계: 10년치 과거 데이터 수집 테스트 시작")
     try:
-        from app.technical_analysis.service.historical_data_service import (
-            HistoricalDataService,
-        )
 
         service = HistoricalDataService()
 
@@ -357,10 +396,6 @@ def test_generate_historical_signals():
     """
     print("🔍 2단계: 과거 데이터 기반 신호 생성 테스트 시작")
     try:
-        from app.technical_analysis.service.signal_generator_service import (
-            SignalGeneratorService,
-        )
-        from datetime import datetime, timedelta
 
         service = SignalGeneratorService()
 
@@ -400,10 +435,6 @@ def test_run_backtesting():
     """
     print("📈 3단계: 백테스팅 실행 테스트 시작")
     try:
-        from app.technical_analysis.service.backtesting_service import (
-            BacktestingService,
-        )
-
         service = BacktestingService()
 
         # 전체 신호 성과 분석
@@ -463,10 +494,6 @@ def test_run_pattern_analysis():
     """
     print("🔍 4단계: 패턴 분석 실행 테스트 시작")
     try:
-        from app.technical_analysis.service.pattern_analysis_service import (
-            PatternAnalysisService,
-        )
-
         service = PatternAnalysisService()
 
         # 나스닥 지수 패턴 분석
@@ -562,25 +589,6 @@ def test_recreate_tables():
     """
     print("⚠️ 테이블 재생성 테스트 시작 (모든 데이터 삭제됨!)")
     try:
-        from sqlalchemy import text
-        from app.common.infra.database.config.database_config import (
-            Base,
-            engine,
-            SessionLocal,
-        )
-
-        # 엔티티 임포트 (테이블 생성용)
-        from app.technical_analysis.infra.model.entity.daily_prices import DailyPrice
-        from app.technical_analysis.infra.model.entity.technical_signals import (
-            TechnicalSignal,
-        )
-        from app.technical_analysis.infra.model.entity.signal_outcomes import (
-            SignalOutcome,
-        )
-        from app.technical_analysis.infra.model.entity.signal_patterns import (
-            SignalPattern,
-        )
-
         session = SessionLocal()
 
         try:
@@ -638,10 +646,6 @@ def test_data_status_check():
     """
     print("📋 데이터 상태 확인 테스트 시작")
     try:
-        from app.technical_analysis.service.historical_data_service import (
-            HistoricalDataService,
-        )
-
         service = HistoricalDataService()
 
         # 데이터 상태 확인
@@ -691,12 +695,6 @@ def initialize_recent_signals_tracking():
     """
     print("🎯 최근 신호들 결과 추적 초기화 시작")
     try:
-        from app.technical_analysis.infra.model.repository.technical_signal_repository import (
-            TechnicalSignalRepository,
-        )
-        from app.common.infra.database.config.database_config import SessionLocal
-        from datetime import datetime, timedelta
-
         # 최근 24시간 내 신호들 조회
         session = SessionLocal()
         signal_repo = TechnicalSignalRepository(session)

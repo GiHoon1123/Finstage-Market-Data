@@ -18,6 +18,7 @@
 """
 
 # 필요한 라이브러리들을 가져옵니다 (import)
+import time
 from typing import List, Optional, Dict, Any, Tuple  # 타입 힌트용
 from datetime import datetime, timedelta  # 날짜와 시간 계산용
 from sqlalchemy.orm import Session  # 데이터베이스 연결용
@@ -354,7 +355,6 @@ class EnhancedOutcomeTrackingService:
                 if retry_count > 0:
                     print(f"      🔄 재시도 {retry_count}/{max_retries}...")
                     # 재시도 간 짧은 대기 시간 추가
-                    import time
 
                     time.sleep(1)
 
