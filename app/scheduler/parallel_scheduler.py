@@ -268,49 +268,35 @@ def start_parallel_scheduler():
 
     print("🔄 병렬 처리 APScheduler 시작됨")
 
-    # 뉴스 크롤링 작업 (병렬) - 간격 증가로 부하 분산
+    # 뉴스 크롤링 작업 (병렬) - 핵심만 유지
     scheduler.add_job(
-        run_investing_economic_news_parallel, "interval", minutes=45
-    )  # 30 → 45
+        run_investing_economic_news_parallel, "interval", minutes=60
+    )  # 경제 뉴스만 1시간마다
     scheduler.add_job(
-        run_investing_market_news_parallel, "interval", minutes=45
-    )  # 30 → 45
-    scheduler.add_job(
-        run_yahoo_futures_news_parallel, "interval", minutes=15
-    )  # 10 → 15
-    scheduler.add_job(run_yahoo_index_news_parallel, "interval", minutes=40)  # 30 → 40
-    scheduler.add_job(run_yahoo_stock_news_parallel, "interval", minutes=20)  # 15 → 20
+        run_yahoo_index_news_parallel, "interval", minutes=60
+    )  # 지수 뉴스만 1시간마다
 
-    # 가격 관련 작업 (병렬) - 시간차 실행으로 부하 분산
+    # 선물 및 개별 종목 뉴스 제거
+    # scheduler.add_job(run_yahoo_futures_news_parallel, "interval", minutes=15)  # 제거
+    # scheduler.add_job(run_yahoo_stock_news_parallel, "interval", minutes=20)  # 제거
+    # scheduler.add_job(run_investing_market_news_parallel, "interval", minutes=45)  # 제거
+
+    # 가격 관련 작업 (핵심만 유지) - 주요 지수만 모니터링
     scheduler.add_job(
         run_high_price_update_job_parallel,
         "interval",
-        hours=2,
-        minutes=0,  # 1시간 → 2시간
-    )
-    scheduler.add_job(
-        run_previous_close_snapshot_job_parallel,
-        "interval",
-        hours=2,
-        minutes=30,  # 15분 → 30분
-    )
-    scheduler.add_job(
-        run_previous_high_snapshot_job_parallel,
-        "interval",
-        hours=3,
-        minutes=0,  # 1시간30분 → 3시간
-    )
-    scheduler.add_job(
-        run_previous_low_snapshot_job_parallel,
-        "interval",
-        hours=3,
-        minutes=30,  # 1시간45분 → 3시간30분
+        hours=4,  # 2시간 → 4시간으로 더 감소
     )
 
-    # 실시간 모니터링 (병렬) - 간격 증가로 부하 감소
+    # 실시간 모니터링 (핵심만) - 간격 더 증가
     scheduler.add_job(
-        run_realtime_price_monitor_job_parallel, "interval", minutes=10
-    )  # 5 → 10분으로 더 증가
+        run_realtime_price_monitor_job_parallel, "interval", minutes=30
+    )  # 10분 → 30분으로 대폭 감소
+
+    # 스냅샷 작업들 제거 (일일 리포트에서 충분히 커버)
+    # scheduler.add_job(run_previous_close_snapshot_job_parallel, ...)  # 제거
+    # scheduler.add_job(run_previous_high_snapshot_job_parallel, ...)   # 제거
+    # scheduler.add_job(run_previous_low_snapshot_job_parallel, ...)    # 제거
 
     # 기존 기술적 지표 모니터링 작업들은 그대로 유지
     from app.scheduler.scheduler_runner import (
