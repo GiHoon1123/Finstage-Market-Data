@@ -63,12 +63,12 @@ SYMBOL_NAME_MAP = {
 SYMBOL_PRICE_MAP = {
     **INDEX_SYMBOLS,
     # **FUTURES_SYMBOLS,  # 선물 제거
-    # **STOCK_SYMBOLS,    # 개별 종목 제거 (핵심 지수만 유지)
+    **STOCK_SYMBOLS,
 }
 
 SYMBOL_CATEGORY_MAP = {
     **{symbol: "지수" for symbol in INDEX_SYMBOLS},
-    **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
+    # **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
     **{symbol: "종목" for symbol in STOCK_SYMBOLS},
     **{symbol: "국제뉴스" for symbol in INVESTING_SYMBOLS},
     # **{symbol: "커뮤니티" for symbol in COMMUNITY_SYMBOLS},
@@ -76,7 +76,7 @@ SYMBOL_CATEGORY_MAP = {
 
 SYMBOL_MONITORING_CATEGORY_MAP = {
     **{symbol: "지수" for symbol in INDEX_SYMBOLS},
-    **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
+    # **{symbol: "선물" for symbol in FUTURES_SYMBOLS},
     **{symbol: "종목" for symbol in STOCK_SYMBOLS},
     **{symbol: "ETF(Long)" for symbol in LONG_ETF_SYMBOLS},
     **{symbol: "ETF(Short)" for symbol in SHORT_ETF_SYMBOLS},

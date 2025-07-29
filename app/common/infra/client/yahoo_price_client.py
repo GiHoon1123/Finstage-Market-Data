@@ -151,12 +151,14 @@ class YahooPriceClient:
             print(f"❌ {symbol} 전일 고점 요청 실패: {e}")
             return None, None
 
-    def get_latest_minute_price(self, symbol: str) -> Optional[float]:
+    def get_latest_minute_price(
+        self, symbol: str, ignore_cache: bool = False
+    ) -> Optional[float]:
         # 캐시 키 생성
         cache_key = f"latest_minute_{symbol}"
 
-        # 캐시에 있으면 캐시된 값 반환 (30초 이내 요청은 캐시 사용)
-        if cache_key in self._cache:
+        # 캐시 무시 플래그가 False일 때만 캐시 확인
+        if not ignore_cache and cache_key in self._cache:
             cached_data = self._cache[cache_key]
             cache_time = cached_data.get("timestamp", 0)
             if (datetime.now().timestamp() - cache_time) < 30:

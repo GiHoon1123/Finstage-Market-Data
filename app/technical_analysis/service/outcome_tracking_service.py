@@ -184,7 +184,16 @@ class OutcomeTrackingService:
                         f"   📊 신호 ID {outcome.signal_id} 처리 중 (경과: {elapsed_hours:.1f}시간)"
                     )
 
-                    # 3. 시간대별 가격 업데이트
+                    # 3. 너무 오래된 신호는 강제 완료 처리 (60일 = 2개월)
+                    if elapsed_hours >= 60 * 24:  # 2개월 이상
+                        outcome_repo.mark_as_complete(outcome.id)
+                        completed_count += 1
+                        print(
+                            f"   ⏰ 오래된 신호 강제 완료: 신호 ID {outcome.signal_id} (경과: {elapsed_hours:.1f}시간)"
+                        )
+                        continue  # 더 이상 처리하지 않음
+
+                    # 4. 시간대별 가격 업데이트
                     updated = self._update_outcome_prices(
                         outcome, signal, elapsed_hours
                     )
@@ -192,13 +201,13 @@ class OutcomeTrackingService:
                         updated_count += 1
                         print(f"   ✅ 가격 업데이트 완료: {signal.signal_type}")
 
-                    # 4. 수익률 계산
+                    # 5. 수익률 계산
                     outcome_repo.calculate_and_update_returns(outcome.id)
 
-                    # 5. 추적 완료 여부 확인
+                    # 6. 추적 완료 여부 확인 (정상 완료)
                     if elapsed_hours >= 30 * 24:  # 1개월 (30일)
                         completed_count += 1
-                        print(f"   🎯 추적 완료: 신호 ID {outcome.signal_id}")
+                        print(f"   🎯 정상 추적 완료: 신호 ID {outcome.signal_id}")
 
                 except Exception as e:
                     print(f"❌ 결과 업데이트 실패: 결과 ID {outcome.id} - {e}")
@@ -248,8 +257,10 @@ class OutcomeTrackingService:
             각 시간대별로 한 번만 업데이트됩니다.
             이미 업데이트된 시간대는 건너뜁니다.
         """
-        # 현재 가격 조회
-        current_price = self.yahoo_client.get_latest_minute_price(signal.symbol)
+        # 현재 가격 조회 (캐시 무시하여 정확한 현재 가격 획득)
+        current_price = self.yahoo_client.get_latest_minute_price(
+            signal.symbol, ignore_cache=True
+        )
         if current_price is None:
             print(f"⚠️ 현재 가격 조회 실패: {signal.symbol}")
             return False

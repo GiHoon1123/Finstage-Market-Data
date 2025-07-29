@@ -21,27 +21,46 @@ executor = ParallelExecutor(max_workers=2)  # 3 → 2로 더 감소
 
 
 @measure_execution_time
-def run_investing_economic_news_parallel():
-    """Investing 경제 뉴스 크롤링 (병렬)"""
+def run_integrated_news_crawling_parallel():
+    """통합 뉴스 크롤링 (경제 뉴스 + 지수 뉴스)"""
     from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
+    from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 
-    print("📡 Investing 경제 뉴스 크롤링 시작 (병렬)")
+    print("📡 통합 뉴스 크롤링 시작 (경제 뉴스 + 지수 뉴스)")
 
-    def process_symbol(symbol):
-        print(f"🔍 {symbol} 뉴스 처리 중...")
+    # 1. Investing 경제 뉴스 크롤링
+    def process_investing_symbol(symbol):
+        print(f"🔍 [경제] {symbol} 뉴스 처리 중...")
         crawler = InvestingNewsCrawler(symbol)
         result = crawler.process_all()
         return result
 
-    # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
-    results = executor.run_symbol_tasks_parallel(
-        process_symbol, INVESTING_ECONOMIC_SYMBOLS, delay=0.5
+    investing_results = executor.run_symbol_tasks_parallel(
+        process_investing_symbol, INVESTING_ECONOMIC_SYMBOLS, delay=0.5
     )
 
-    success_count = sum(1 for r in results if r is not None)
+    investing_success = sum(1 for r in investing_results if r is not None)
     print(
-        f"✅ Investing 경제 뉴스 크롤링 완료: {success_count}/{len(INVESTING_ECONOMIC_SYMBOLS)} 성공"
+        f"✅ 경제 뉴스 크롤링 완료: {investing_success}/{len(INVESTING_ECONOMIC_SYMBOLS)} 성공"
     )
+
+    # 2. Yahoo 지수 뉴스 크롤링
+    def process_yahoo_symbol(symbol):
+        print(f"🔍 [지수] {symbol} 뉴스 처리 중...")
+        crawler = YahooNewsCrawler(symbol)
+        result = crawler.process_all()
+        return result
+
+    yahoo_results = executor.run_symbol_tasks_parallel(
+        process_yahoo_symbol, INDEX_SYMBOLS, delay=0.5
+    )
+
+    yahoo_success = sum(1 for r in yahoo_results if r is not None)
+    print(f"✅ 지수 뉴스 크롤링 완료: {yahoo_success}/{len(INDEX_SYMBOLS)} 성공")
+
+    total_success = investing_success + yahoo_success
+    total_symbols = len(INVESTING_ECONOMIC_SYMBOLS) + len(INDEX_SYMBOLS)
+    print(f"🎉 통합 뉴스 크롤링 전체 완료: {total_success}/{total_symbols} 성공")
 
 
 @measure_execution_time
@@ -92,26 +111,9 @@ def run_yahoo_futures_news_parallel():
     )
 
 
-@measure_execution_time
-def run_yahoo_index_news_parallel():
-    """Yahoo 지수 뉴스 크롤링 (병렬)"""
-    from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
-
-    print("🕒 Yahoo 지수 뉴스 크롤링 시작 (병렬)")
-
-    def process_symbol(symbol):
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        crawler = YahooNewsCrawler(symbol)
-        result = crawler.process_all()
-        return result
-
-    # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
-    results = executor.run_symbol_tasks_parallel(
-        process_symbol, INDEX_SYMBOLS, delay=0.5
-    )
-
-    success_count = sum(1 for r in results if r is not None)
-    print(f"✅ Yahoo 지수 뉴스 크롤링 완료: {success_count}/{len(INDEX_SYMBOLS)} 성공")
+# 기존 개별 뉴스 크롤링 함수들은 통합 함수로 대체됨
+# run_investing_economic_news_parallel() -> run_integrated_news_crawling_parallel()
+# run_yahoo_index_news_parallel() -> run_integrated_news_crawling_parallel()
 
 
 @measure_execution_time
@@ -268,18 +270,21 @@ def start_parallel_scheduler():
 
     print("🔄 병렬 처리 APScheduler 시작됨")
 
-    # 뉴스 크롤링 작업 (병렬) - 핵심만 유지
+    # 🆕 통합 뉴스 크롤링 작업 (경제 뉴스 + 지수 뉴스)
     scheduler.add_job(
-        run_investing_economic_news_parallel, "interval", minutes=60
-    )  # 경제 뉴스만 1시간마다
-    scheduler.add_job(
-        run_yahoo_index_news_parallel, "interval", minutes=60
-    )  # 지수 뉴스만 1시간마다
+        run_integrated_news_crawling_parallel, "interval", minutes=90
+    )  # 통합 뉴스 90분마다 (기존 60분×2 → 90분×1로 최적화)
 
-    # 선물 및 개별 종목 뉴스 제거
-    # scheduler.add_job(run_yahoo_futures_news_parallel, "interval", minutes=15)  # 제거
-    # scheduler.add_job(run_yahoo_stock_news_parallel, "interval", minutes=20)  # 제거
-    # scheduler.add_job(run_investing_market_news_parallel, "interval", minutes=45)  # 제거
+    # 🆕 모든 종목 뉴스 크롤링 활성화 (데이터 흐름 확인용)
+    scheduler.add_job(
+        run_yahoo_futures_news_parallel, "interval", hours=2
+    )  # 선물 뉴스 2시간마다
+    scheduler.add_job(
+        run_yahoo_stock_news_parallel, "interval", hours=3
+    )  # 종목 뉴스 3시간마다
+    scheduler.add_job(
+        run_investing_market_news_parallel, "interval", hours=4
+    )  # 시장 뉴스 4시간마다
 
     # 가격 관련 작업 (핵심만 유지) - 주요 지수만 모니터링
     scheduler.add_job(

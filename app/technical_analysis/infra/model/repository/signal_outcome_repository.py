@@ -152,7 +152,9 @@ class SignalOutcomeRepository:
             .first()
         )
 
-    def find_incomplete_outcomes(self, hours_old: int = 1) -> List[SignalOutcome]:
+    def find_incomplete_outcomes(
+        self, hours_old: int = 1, max_age_hours: int = 45 * 24
+    ) -> List[SignalOutcome]:
         """
         미완료 결과 레코드들 조회
 
@@ -161,24 +163,30 @@ class SignalOutcomeRepository:
 
         Args:
             hours_old: 몇 시간 이상 된 것만 조회 (너무 최근 것은 제외)
+            max_age_hours: 최대 추적 기간 (기본: 45일, 이보다 오래된 것은 제외)
 
         Returns:
             미완료 결과 레코드 리스트
         """
-        # 기준 시간 계산 (현재 시간 - hours_old)
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours_old)
+        # 기준 시간 계산
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours_old)  # 최소 경과 시간
+        max_age_time = datetime.utcnow() - timedelta(
+            hours=max_age_hours
+        )  # 최대 추적 기간
 
         # 미완료 조건:
         # 1. is_complete = False
         # 2. 생성된 지 hours_old 시간 이상 경과
-        # 3. 아직 채워지지 않은 가격 필드가 있음
+        # 3. 최대 추적 기간(45일) 이내
+        # 4. 아직 채워지지 않은 가격 필드가 있음
         return (
             self.session.query(SignalOutcome)
             .join(TechnicalSignal)
             .filter(
                 and_(
                     SignalOutcome.is_complete == False,
-                    TechnicalSignal.triggered_at <= cutoff_time,
+                    TechnicalSignal.triggered_at <= cutoff_time,  # 최소 경과 시간
+                    TechnicalSignal.triggered_at >= max_age_time,  # 최대 추적 기간 제한
                     or_(
                         SignalOutcome.price_1h_after == None,
                         SignalOutcome.price_4h_after == None,
@@ -785,6 +793,42 @@ class SignalOutcomeRepository:
         except Exception as e:
             print(f"❌ 완료된 결과 개수 조회 실패: {e}")
             return 0
+
+    def mark_as_complete(self, outcome_id: int) -> bool:
+        """
+        결과 추적을 완료 상태로 표시
+
+        너무 오래된 신호나 더 이상 추적할 필요가 없는 경우
+        강제로 완료 상태로 변경합니다.
+
+        Args:
+            outcome_id: 완료 처리할 결과 ID
+
+        Returns:
+            bool: 성공 여부
+        """
+        try:
+            outcome = (
+                self.session.query(SignalOutcome)
+                .filter(SignalOutcome.id == outcome_id)
+                .first()
+            )
+
+            if not outcome:
+                print(f"⚠️ 결과 ID {outcome_id}를 찾을 수 없음")
+                return False
+
+            outcome.is_complete = True
+            outcome.last_updated_at = datetime.utcnow()
+
+            self.session.commit()
+            print(f"✅ 결과 ID {outcome_id} 완료 처리됨")
+            return True
+
+        except Exception as e:
+            print(f"❌ 결과 ID {outcome_id} 완료 처리 실패: {e}")
+            self.session.rollback()
+            return False
 
     def count_outcomes_with_price_1h(self) -> int:
         """
