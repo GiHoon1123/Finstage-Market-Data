@@ -324,5 +324,38 @@ def start_parallel_scheduler():
     scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
     scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
 
+    # 🆕 일일 종합 분석 리포트 (매일 오전 8시)
+    scheduler.add_job(
+        run_daily_comprehensive_report, "cron", hour=8, minute=0, timezone="Asia/Seoul"
+    )
+
     print("✅ 병렬 처리 스케줄러 시작")
     scheduler.start()
+
+
+@measure_execution_time
+def run_daily_comprehensive_report():
+    """
+    일일 종합 분석 리포트 생성 및 전송
+    - 백테스팅 성과 분석
+    - 패턴 분석 결과
+    - 머신러닝 기반 분석
+    - 투자 인사이트 제공
+    """
+    print("📊 일일 종합 분석 리포트 생성 시작")
+
+    try:
+        from app.technical_analysis.service.daily_comprehensive_report_service import (
+            DailyComprehensiveReportService,
+        )
+
+        service = DailyComprehensiveReportService()
+        result = service.generate_daily_report()
+
+        if "error" in result:
+            print(f"❌ 일일 리포트 생성 실패: {result['error']}")
+        else:
+            print("✅ 일일 종합 분석 리포트 생성 및 전송 완료")
+
+    except Exception as e:
+        print(f"❌ 일일 종합 분석 리포트 실패: {e}")

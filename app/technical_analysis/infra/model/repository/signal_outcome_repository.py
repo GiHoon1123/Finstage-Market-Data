@@ -409,36 +409,57 @@ class SignalOutcomeRepository:
             timeframe_eval, SignalOutcome.is_successful_1d
         )
 
-        # 쿼리 실행 (SQLAlchemy 호환성을 위해 CASE 문 사용)
-        results = (
+        # 두 단계로 나누어 처리: 먼저 전체 개수, 그 다음 성공 개수
+        # 1단계: 신호 타입별 전체 개수
+        total_counts = (
             self.session.query(
                 TechnicalSignal.signal_type,
                 func.count(SignalOutcome.id).label("total_count"),
-                func.count(func.case((success_field == True, 1))).label(
-                    "success_count"
-                ),
             )
             .join(SignalOutcome)
-            .filter(success_field != None)  # 평가가 완료된 것만
+            .filter(success_field != None)
             .group_by(TechnicalSignal.signal_type)
             .having(func.count(SignalOutcome.id) >= min_samples)
             .all()
         )
 
-        # 결과 포맷팅
-        return [
-            {
-                "signal_type": result.signal_type,
-                "total_count": result.total_count,
-                "success_count": result.success_count or 0,
-                "success_rate": (
-                    (result.success_count or 0) / result.total_count
-                    if result.total_count > 0
-                    else 0.0
-                ),
-            }
-            for result in results
-        ]
+        # 2단계: 각 신호 타입별로 성공 개수 계산
+        results = []
+        for total_result in total_counts:
+            signal_type = total_result.signal_type
+            total_count = total_result.total_count
+
+            # 성공한 케이스만 카운트
+            success_count = (
+                self.session.query(func.count(SignalOutcome.id))
+                .join(TechnicalSignal)
+                .filter(
+                    and_(
+                        TechnicalSignal.signal_type == signal_type,
+                        success_field == True,
+                    )
+                )
+                .scalar()
+                or 0
+            )
+
+            results.append(
+                {
+                    "signal_type": signal_type,
+                    "total_count": total_count,
+                    "success_count": success_count,
+                }
+            )
+
+        # 결과 포맷팅 (이미 딕셔너리 형태이므로 성공률만 추가)
+        for result in results:
+            result["success_rate"] = (
+                result["success_count"] / result["total_count"]
+                if result["total_count"] > 0
+                else 0.0
+            )
+
+        return results
 
     def get_average_returns_by_signal_type(
         self, timeframe_eval: str = "1d", min_samples: int = 10

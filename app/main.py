@@ -20,6 +20,9 @@ from app.technical_analysis.web.route.advanced_pattern_router import (
 from app.technical_analysis.web.route.outcome_analysis_router import (
     router as outcome_analysis_router,
 )
+from app.technical_analysis.web.route.daily_report_router import (
+    router as daily_report_router,
+)
 
 
 import os
@@ -73,6 +76,11 @@ app.include_router(
     outcome_analysis_router,
     prefix="/api/technical-analysis/outcomes",
     tags=["Outcome Analysis"],
+)
+app.include_router(
+    daily_report_router,
+    prefix="/api/daily-report",
+    tags=["Daily Report"],
 )
 
 # 테스트 라우터 등록
