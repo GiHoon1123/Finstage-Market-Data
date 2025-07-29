@@ -2,14 +2,12 @@
 INDEX_SYMBOLS = {
     "^IXIC": "나스닥 지수",
     "^GSPC": "S&P 500 지수",
-    "^DJI": "다우존스 지수",
 }
 
 # ✅ 선물 (Futures)
 FUTURES_SYMBOLS = {
     "ES=F": "S&P 500 선물",
     "NQ=F": "나스닥 선물",
-    "YM=F": "다우존스 선물",
 }
 
 # ✅ 종목 (Stocks)
