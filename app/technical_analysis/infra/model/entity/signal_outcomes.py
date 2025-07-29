@@ -238,6 +238,7 @@ class SignalOutcome(Base):
     signal = relationship(
         "TechnicalSignal",
         back_populates="outcome",
+        lazy="select",  # 지연 로딩으로 순환 참조 문제 해결
     )
 
     # =================================================================

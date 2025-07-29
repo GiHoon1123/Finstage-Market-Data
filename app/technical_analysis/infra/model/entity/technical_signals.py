@@ -158,6 +158,7 @@ class TechnicalSignal(Base):
         back_populates="signal",
         uselist=False,  # 1:1 관계이므로 단일 객체
         cascade="all, delete-orphan",  # 신호 삭제시 결과도 함께 삭제
+        lazy="select",  # 지연 로딩으로 순환 참조 문제 해결
     )
 
     # =================================================================

@@ -308,12 +308,18 @@ def start_parallel_scheduler():
         run_daily_index_analysis,
         run_outcome_tracking_update,
         initialize_recent_signals_tracking,
+        run_pattern_discovery,
     )
 
     # 일일 지수 분석은 scheduler_runner.py에서 오전 7시에만 실행
     # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)  # 제거됨
     scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
     scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
+
+    # 🆕 패턴 발견 및 분석 (매일 오전 6시)
+    scheduler.add_job(
+        run_pattern_discovery, "cron", hour=6, minute=0, timezone="Asia/Seoul"
+    )
 
     # 🆕 일일 종합 분석 리포트 (매일 오전 8시)
     scheduler.add_job(

@@ -727,6 +727,41 @@ def initialize_recent_signals_tracking():
         print(f"❌ 결과 추적 초기화 실패: {e}")
 
 
+def run_pattern_discovery():
+    """
+    패턴 발견 및 분석 실행
+    - 기존 신호들을 분석하여 패턴 발견
+    - 매일 오전 6시 실행하여 새로운 패턴 탐지
+    - 머신러닝 클러스터링을 위한 데이터 준비
+    """
+    print("🔍 패턴 발견 및 분석 시작")
+    try:
+        from app.technical_analysis.service.pattern_analysis_service import (
+            PatternAnalysisService,
+        )
+
+        service = PatternAnalysisService()
+        total_patterns = 0
+
+        # 주요 지수별 패턴 발견
+        for symbol in ["^IXIC", "^GSPC"]:
+            print(f"   📊 {symbol} 패턴 분석 중...")
+
+            result = service.discover_patterns(symbol=symbol, timeframe="1day")
+
+            if "error" in result:
+                print(f"   ❌ {symbol} 패턴 발견 실패: {result['error']}")
+            else:
+                pattern_count = result.get("total_patterns", 0)
+                total_patterns += pattern_count
+                print(f"   ✅ {symbol} 패턴 발견 완료: {pattern_count}개")
+
+        print(f"✅ 패턴 발견 완료: 총 {total_patterns}개 패턴 발견")
+
+    except Exception as e:
+        print(f"❌ 패턴 발견 실패: {e}")
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
 
