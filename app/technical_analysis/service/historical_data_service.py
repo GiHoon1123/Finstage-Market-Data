@@ -22,6 +22,9 @@ from app.technical_analysis.infra.model.entity.daily_prices import DailyPrice
 from app.technical_analysis.infra.model.repository.daily_price_repository import (
     DailyPriceRepository,
 )
+from app.common.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class HistoricalDataService:

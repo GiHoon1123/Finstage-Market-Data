@@ -17,6 +17,9 @@ from datetime import datetime
 from functools import lru_cache
 
 from app.common.utils.parallel_executor import measure_execution_time
+from app.common.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class OptimizedIndicatorService:
@@ -89,7 +92,12 @@ class OptimizedIndicatorService:
             return ma
 
         except Exception as e:
-            print(f"❌ 이동평균 계산 실패 (period={period}): {e}")
+            logger.error(
+                "moving_average_calculation_failed",
+                period=period,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return pd.Series()
 
     def detect_ma_breakout(
@@ -106,8 +114,12 @@ class OptimizedIndicatorService:
                 and current_price > current_ma * (1 + min_breakout_pct)
             ):  # 지금은 MA 0.5% 이상 위
                 breakout_strength = ((current_price - current_ma) / current_ma) * 100
-                print(
-                    f"🚀 상향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f}, 강도: {breakout_strength:.2f}%)"
+                logger.info(
+                    "upward_breakout_detected",
+                    prev_price=prev_price,
+                    current_price=current_price,
+                    ma_value=current_ma,
+                    breakout_strength=breakout_strength,
                 )
                 return "breakout_up"
 
@@ -117,15 +129,23 @@ class OptimizedIndicatorService:
                 and current_price < current_ma * (1 - min_breakout_pct)
             ):  # 지금은 MA 0.5% 이상 아래
                 breakout_strength = ((current_ma - current_price) / current_ma) * 100
-                print(
-                    f"📉 하향 돌파 감지: {prev_price:.2f} → {current_price:.2f} (MA: {current_ma:.2f}, 강도: {breakout_strength:.2f}%)"
+                logger.info(
+                    "downward_breakout_detected",
+                    prev_price=prev_price,
+                    current_price=current_price,
+                    ma_value=current_ma,
+                    breakout_strength=breakout_strength,
                 )
                 return "breakout_down"
 
             return None
 
         except Exception as e:
-            print(f"❌ 이동평균 돌파 감지 실패: {e}")
+            logger.error(
+                "moving_average_breakout_detection_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return None
 
     # =========================================================================
@@ -188,7 +208,9 @@ class OptimizedIndicatorService:
             return rsi
 
         except Exception as e:
-            print(f"❌ RSI 계산 실패: {e}")
+            logger.error(
+                "rsi_calculation_failed", error=str(e), error_type=type(e).__name__
+            )
             return pd.Series()
 
     def detect_rsi_signals(self, current_rsi: float, prev_rsi: float) -> Optional[str]:
@@ -196,28 +218,44 @@ class OptimizedIndicatorService:
         try:
             # 과매수 진입: RSI가 68~72 범위에서 70을 돌파
             if prev_rsi <= 72 and current_rsi > 68 and current_rsi >= prev_rsi + 2:
-                print(f"🔴 RSI 과매수 진입: {prev_rsi:.1f} → {current_rsi:.1f}")
+                logger.info(
+                    "rsi_overbought_detected",
+                    prev_rsi=prev_rsi,
+                    current_rsi=current_rsi,
+                )
                 return "overbought"
 
             # 과매도 진입: RSI가 28~32 범위에서 30을 이탈
             elif prev_rsi >= 28 and current_rsi < 32 and current_rsi <= prev_rsi - 2:
-                print(f"🟢 RSI 과매도 진입: {prev_rsi:.1f} → {current_rsi:.1f}")
+                logger.info(
+                    "rsi_oversold_detected", prev_rsi=prev_rsi, current_rsi=current_rsi
+                )
                 return "oversold"
 
             # 상승 모멘텀: RSI가 48~52 범위에서 50을 돌파
             elif prev_rsi <= 52 and current_rsi > 48 and current_rsi >= prev_rsi + 3:
-                print(f"📈 RSI 상승 모멘텀: {prev_rsi:.1f} → {current_rsi:.1f}")
+                logger.info(
+                    "rsi_bullish_momentum_detected",
+                    prev_rsi=prev_rsi,
+                    current_rsi=current_rsi,
+                )
                 return "bullish"
 
             # 하락 모멘텀: RSI가 48~52 범위에서 50을 이탈
             elif prev_rsi >= 48 and current_rsi < 52 and current_rsi <= prev_rsi - 3:
-                print(f"📉 RSI 하락 모멘텀: {prev_rsi:.1f} → {current_rsi:.1f}")
+                logger.info(
+                    "rsi_bearish_momentum_detected",
+                    prev_rsi=prev_rsi,
+                    current_rsi=current_rsi,
+                )
                 return "bearish"
 
             return None
 
         except Exception as e:
-            print(f"❌ RSI 신호 감지 실패: {e}")
+            logger.error(
+                "rsi_signal_detection_failed", error=str(e), error_type=type(e).__name__
+            )
             return None
 
     # =========================================================================
@@ -284,7 +322,11 @@ class OptimizedIndicatorService:
             return result
 
         except Exception as e:
-            print(f"❌ 볼린저 밴드 계산 실패: {e}")
+            logger.error(
+                "bollinger_bands_calculation_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return {}
 
     def detect_bollinger_signals(
@@ -300,36 +342,48 @@ class OptimizedIndicatorService:
         try:
             # 상단 밴드 돌파: 매우 강한 상승 신호
             if prev_price <= prev_upper and current_price > upper_band:
-                print(
-                    f"🚀 볼린저 상단 밴드 돌파: {current_price:.2f} > {upper_band:.2f}"
+                logger.info(
+                    "bollinger_upper_band_breakout",
+                    current_price=current_price,
+                    upper_band=upper_band,
                 )
                 return "break_upper"
 
             # 하단 밴드 이탈: 매우 강한 하락 신호
             elif prev_price >= prev_lower and current_price < lower_band:
-                print(
-                    f"💥 볼린저 하단 밴드 이탈: {current_price:.2f} < {lower_band:.2f}"
+                logger.info(
+                    "bollinger_lower_band_breakdown",
+                    current_price=current_price,
+                    lower_band=lower_band,
                 )
                 return "break_lower"
 
             # 상단 밴드 터치: 과매수 신호
             elif abs(current_price - upper_band) / upper_band < 0.01:  # 1% 이내 근접
-                print(
-                    f"🔴 볼린저 상단 밴드 터치: {current_price:.2f} ≈ {upper_band:.2f}"
+                logger.info(
+                    "bollinger_upper_band_touch",
+                    current_price=current_price,
+                    upper_band=upper_band,
                 )
                 return "touch_upper"
 
             # 하단 밴드 터치: 과매도 신호
             elif abs(current_price - lower_band) / lower_band < 0.01:  # 1% 이내 근접
-                print(
-                    f"🟢 볼린저 하단 밴드 터치: {current_price:.2f} ≈ {lower_band:.2f}"
+                logger.info(
+                    "bollinger_lower_band_touch",
+                    current_price=current_price,
+                    lower_band=lower_band,
                 )
                 return "touch_lower"
 
             return None
 
         except Exception as e:
-            print(f"❌ 볼린저 밴드 신호 감지 실패: {e}")
+            logger.error(
+                "bollinger_bands_signal_detection_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return None
 
     # =========================================================================
@@ -353,22 +407,28 @@ class OptimizedIndicatorService:
 
             # 골든크로스: 이전에는 단기선이 장기선 아래 있었는데, 지금은 위에 있음
             if prev_short <= prev_long and current_short > current_long:
-                print(
-                    f"🚀 골든크로스 발생! 단기선: {current_short:.2f}, 장기선: {current_long:.2f}"
+                logger.info(
+                    "golden_cross_detected",
+                    short_ma=current_short,
+                    long_ma=current_long,
                 )
                 return "golden_cross"
 
             # 데드크로스: 이전에는 단기선이 장기선 위에 있었는데, 지금은 아래에 있음
             elif prev_short >= prev_long and current_short < current_long:
-                print(
-                    f"💀 데드크로스 발생! 단기선: {current_short:.2f}, 장기선: {current_long:.2f}"
+                logger.info(
+                    "death_cross_detected", short_ma=current_short, long_ma=current_long
                 )
                 return "dead_cross"
 
             return None
 
         except Exception as e:
-            print(f"❌ 크로스 신호 감지 실패: {e}")
+            logger.error(
+                "cross_signal_detection_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return None
 
     # =========================================================================
@@ -458,9 +518,16 @@ class OptimizedIndicatorService:
 
             result["signals"] = signals
 
-            print(f"📊 종합 기술적 분석 완료: {len(signals)}개 신호 감지")
+            logger.info(
+                "comprehensive_technical_analysis_completed",
+                signals_detected=len(signals),
+            )
             return result
 
         except Exception as e:
-            print(f"❌ 종합 기술적 분석 실패: {e}")
+            logger.error(
+                "comprehensive_technical_analysis_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return {}

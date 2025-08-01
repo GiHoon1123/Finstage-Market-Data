@@ -4,6 +4,11 @@
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.common.utils.parallel_executor import ParallelExecutor, measure_execution_time
+from app.common.utils.logging_config import get_logger
+from app.common.exceptions.handlers import handle_scheduler_errors, safe_execute
+from app.common.exceptions.base import SchedulerError, ErrorCode
+
+logger = get_logger("parallel_scheduler")
 from app.common.constants.symbol_names import (
     INDEX_SYMBOLS,
     FUTURES_SYMBOLS,
@@ -21,16 +26,20 @@ executor = ParallelExecutor(max_workers=2)  # 3 → 2로 더 감소
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_integrated_news_crawling_parallel():
     """통합 뉴스 크롤링 (경제 뉴스 + 지수 뉴스)"""
     from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
     from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 
-    print("📡 통합 뉴스 크롤링 시작 (경제 뉴스 + 지수 뉴스)")
+    logger.info(
+        "integrated_news_crawling_started",
+        sources=["investing_economic", "yahoo_index"],
+    )
 
     # 1. Investing 경제 뉴스 크롤링
     def process_investing_symbol(symbol):
-        print(f"🔍 [경제] {symbol} 뉴스 처리 중...")
+        logger.debug("processing_symbol", source="investing_economic", symbol=symbol)
         crawler = InvestingNewsCrawler(symbol)
         result = crawler.process_all()
         return result
@@ -40,13 +49,17 @@ def run_integrated_news_crawling_parallel():
     )
 
     investing_success = sum(1 for r in investing_results if r is not None)
-    print(
-        f"✅ 경제 뉴스 크롤링 완료: {investing_success}/{len(INVESTING_ECONOMIC_SYMBOLS)} 성공"
+    logger.info(
+        "news_crawling_completed",
+        source="investing_economic",
+        success_count=investing_success,
+        total_count=len(INVESTING_ECONOMIC_SYMBOLS),
+        success_rate=investing_success / len(INVESTING_ECONOMIC_SYMBOLS),
     )
 
     # 2. Yahoo 지수 뉴스 크롤링
     def process_yahoo_symbol(symbol):
-        print(f"🔍 [지수] {symbol} 뉴스 처리 중...")
+        logger.debug("processing_symbol", source="yahoo_index", symbol=symbol)
         crawler = YahooNewsCrawler(symbol)
         result = crawler.process_all()
         return result
@@ -56,22 +69,34 @@ def run_integrated_news_crawling_parallel():
     )
 
     yahoo_success = sum(1 for r in yahoo_results if r is not None)
-    print(f"✅ 지수 뉴스 크롤링 완료: {yahoo_success}/{len(INDEX_SYMBOLS)} 성공")
+    logger.info(
+        "news_crawling_completed",
+        source="yahoo_index",
+        success_count=yahoo_success,
+        total_count=len(INDEX_SYMBOLS),
+        success_rate=yahoo_success / len(INDEX_SYMBOLS),
+    )
 
     total_success = investing_success + yahoo_success
     total_symbols = len(INVESTING_ECONOMIC_SYMBOLS) + len(INDEX_SYMBOLS)
-    print(f"🎉 통합 뉴스 크롤링 전체 완료: {total_success}/{total_symbols} 성공")
+    logger.info(
+        "integrated_news_crawling_completed",
+        total_success=total_success,
+        total_symbols=total_symbols,
+        overall_success_rate=total_success / total_symbols,
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_investing_market_news_parallel():
     """Investing 시장 뉴스 크롤링 (병렬)"""
     from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
 
-    print("📡 Investing 시장 뉴스 크롤링 시작 (병렬)")
+    logger.info("news_crawling_started", source="investing_market")
 
     def process_symbol(symbol):
-        print(f"🔍 {symbol} 뉴스 처리 중...")
+        logger.debug("processing_symbol", source="investing_market", symbol=symbol)
         crawler = InvestingNewsCrawler(symbol)
         result = crawler.process_all()
         return result
@@ -82,20 +107,25 @@ def run_investing_market_news_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(
-        f"✅ Investing 시장 뉴스 크롤링 완료: {success_count}/{len(INVESTING_MARKET_SYMBOLS)} 성공"
+    logger.info(
+        "news_crawling_completed",
+        source="investing_market",
+        success_count=success_count,
+        total_count=len(INVESTING_MARKET_SYMBOLS),
+        success_rate=success_count / len(INVESTING_MARKET_SYMBOLS),
     )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_yahoo_futures_news_parallel():
     """Yahoo 선물 뉴스 크롤링 (병렬)"""
     from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 
-    print("🕒 Yahoo 선물 뉴스 크롤링 시작 (병렬)")
+    logger.info("news_crawling_started", source="yahoo_futures")
 
     def process_symbol(symbol):
-        print(f"🔍 {symbol} 뉴스 처리 중...")
+        logger.debug("processing_symbol", source="yahoo_futures", symbol=symbol)
         crawler = YahooNewsCrawler(symbol)
         result = crawler.process_all()
         return result
@@ -106,8 +136,12 @@ def run_yahoo_futures_news_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(
-        f"✅ Yahoo 선물 뉴스 크롤링 완료: {success_count}/{len(FUTURES_SYMBOLS)} 성공"
+    logger.info(
+        "news_crawling_completed",
+        source="yahoo_futures",
+        success_count=success_count,
+        total_count=len(FUTURES_SYMBOLS),
+        success_rate=success_count / len(FUTURES_SYMBOLS),
     )
 
 
@@ -117,14 +151,15 @@ def run_yahoo_futures_news_parallel():
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_yahoo_stock_news_parallel():
     """Yahoo 종목 뉴스 크롤링 (병렬)"""
     from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 
-    print("🕒 Yahoo 종목 뉴스 크롤링 시작 (병렬)")
+    logger.info("news_crawling_started", source="yahoo_stocks")
 
     def process_symbol(symbol):
-        print(f"🔍 {symbol} 뉴스 처리 중...")
+        logger.debug("processing_symbol", source="yahoo_stocks", symbol=symbol)
         crawler = YahooNewsCrawler(symbol)
         result = crawler.process_all()
         return result
@@ -135,29 +170,39 @@ def run_yahoo_stock_news_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ Yahoo 종목 뉴스 크롤링 완료: {success_count}/{len(STOCK_SYMBOLS)} 성공")
+    logger.info(
+        "news_crawling_completed",
+        source="yahoo_stocks",
+        success_count=success_count,
+        total_count=len(STOCK_SYMBOLS),
+        success_rate=success_count / len(STOCK_SYMBOLS),
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_high_price_update_job_parallel():
     """상장 후 최고가 갱신 (병렬)"""
     from app.market_price.service.price_high_record_service import (
         PriceHighRecordService,
     )
 
-    print("📈 상장 후 최고가 갱신 시작 (병렬)")
+    logger.info("high_price_update_started")
 
     def update_high_price(symbol):
-        try:
-            service = PriceHighRecordService()
-            result = service.update_all_time_high(symbol)
-            # 서비스 사용 후 세션 정리
-            if hasattr(service, "__del__"):
-                service.__del__()
-            return result
-        except Exception as e:
-            print(f"❌ {symbol} 고점 갱신 실패: {e}")
-            return None
+        return safe_execute(
+            lambda: _update_high_price_for_symbol(symbol),
+            default_return=None,
+            log_errors=True,
+        )
+
+    def _update_high_price_for_symbol(symbol):
+        service = PriceHighRecordService()
+        result = service.update_all_time_high(symbol)
+        # 서비스 사용 후 세션 정리
+        if hasattr(service, "__del__"):
+            service.__del__()
+        return result
 
     # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
     results = executor.run_symbol_tasks_parallel(
@@ -167,15 +212,21 @@ def run_high_price_update_job_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 최고가 갱신 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "high_price_update_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_close_snapshot_job_parallel():
     """전일 종가 저장 (병렬)"""
     from app.market_price.service.price_snapshot_service import PriceSnapshotService
 
-    print("🕓 전일 종가 저장 시작 (병렬)")
+    logger.info("previous_close_snapshot_started")
 
     def save_previous_close(symbol):
         service = PriceSnapshotService()
@@ -188,15 +239,21 @@ def run_previous_close_snapshot_job_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 전일 종가 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "previous_close_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_high_snapshot_job_parallel():
     """전일 고점 저장 (병렬)"""
     from app.market_price.service.price_snapshot_service import PriceSnapshotService
 
-    print("🔺 전일 고점 저장 시작 (병렬)")
+    logger.info("previous_high_snapshot_started")
 
     def save_previous_high(symbol):
         service = PriceSnapshotService()
@@ -209,15 +266,21 @@ def run_previous_high_snapshot_job_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 전일 고점 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "previous_high_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_low_snapshot_job_parallel():
     """전일 저점 저장 (병렬)"""
     from app.market_price.service.price_snapshot_service import PriceSnapshotService
 
-    print("🔻 전일 저점 저장 시작 (병렬)")
+    logger.info("previous_low_snapshot_started")
 
     def save_previous_low(symbol):
         service = PriceSnapshotService()
@@ -230,30 +293,39 @@ def run_previous_low_snapshot_job_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 전일 저점 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "previous_low_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_realtime_price_monitor_job_parallel():
     """실시간 가격 모니터링 (병렬)"""
     from app.market_price.service.price_monitor_service import PriceMonitorService
     from app.common.utils.db_session_manager import session_scope
 
-    print("📡 실시간 가격 모니터링 시작 (병렬)")
+    logger.info("realtime_price_monitoring_started")
 
     def check_price(symbol):
-        try:
-            # 세션 컨텍스트 매니저 사용
-            with session_scope() as session:
-                service = PriceMonitorService()
-                # 세션 명시적 전달 (가능한 경우)
-                if hasattr(service, "set_session"):
-                    service.set_session(session)
-                result = service.check_price_against_baseline(symbol)
-                return result
-        except Exception as e:
-            print(f"❌ {symbol} 가격 모니터링 실패: {e}")
-            return None
+        return safe_execute(
+            lambda: _check_price_for_symbol(symbol),
+            default_return=None,
+            log_errors=True,
+        )
+
+    def _check_price_for_symbol(symbol):
+        # 세션 컨텍스트 매니저 사용
+        with session_scope() as session:
+            service = PriceMonitorService()
+            # 세션 명시적 전달 (가능한 경우)
+            if hasattr(service, "set_session"):
+                service.set_session(session)
+            result = service.check_price_against_baseline(symbol)
+            return result
 
     # 병렬 실행 (배치 크기 제한 및 지연 시간 증가)
     results = executor.run_symbol_tasks_parallel(
@@ -261,14 +333,19 @@ def run_realtime_price_monitor_job_parallel():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 실시간 가격 모니터링 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "realtime_price_monitoring_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 def start_parallel_scheduler():
     """병렬 처리 기능이 추가된 스케줄러 시작"""
     scheduler = BackgroundScheduler()
 
-    print("🔄 병렬 처리 APScheduler 시작됨")
+    logger.info("parallel_scheduler_starting")
 
     # 🆕 통합 뉴스 크롤링 작업 (경제 뉴스 + 지수 뉴스)
     scheduler.add_job(
@@ -326,11 +403,12 @@ def start_parallel_scheduler():
         run_daily_comprehensive_report, "cron", hour=8, minute=0, timezone="Asia/Seoul"
     )
 
-    print("✅ 병렬 처리 스케줄러 시작")
+    logger.info("parallel_scheduler_started")
     scheduler.start()
 
 
 @measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_daily_comprehensive_report():
     """
     일일 종합 분석 리포트 생성 및 전송
@@ -339,20 +417,20 @@ def run_daily_comprehensive_report():
     - 머신러닝 기반 분석
     - 투자 인사이트 제공
     """
-    print("📊 일일 종합 분석 리포트 생성 시작")
+    logger.info("daily_comprehensive_report_started")
 
-    try:
-        from app.technical_analysis.service.daily_comprehensive_report_service import (
-            DailyComprehensiveReportService,
+    from app.technical_analysis.service.daily_comprehensive_report_service import (
+        DailyComprehensiveReportService,
+    )
+
+    service = DailyComprehensiveReportService()
+    result = service.generate_daily_report()
+
+    if result and "error" in result:
+        raise SchedulerError(
+            message=f"일일 리포트 생성 실패: {result['error']}",
+            error_code=ErrorCode.TASK_EXECUTION_ERROR,
+            details={"service": "daily_comprehensive_report", "result": result},
         )
-
-        service = DailyComprehensiveReportService()
-        result = service.generate_daily_report()
-
-        if "error" in result:
-            print(f"❌ 일일 리포트 생성 실패: {result['error']}")
-        else:
-            print("✅ 일일 종합 분석 리포트 생성 및 전송 완료")
-
-    except Exception as e:
-        print(f"❌ 일일 종합 분석 리포트 실패: {e}")
+    else:
+        logger.info("daily_comprehensive_report_completed")

@@ -1,11 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from app.config import MYSQL_URL
+from app.common.config.settings import settings
 
 # SQLAlchemy 엔진 생성 - 연결 풀링 최적화 (QueuePool limit 오류 해결)
 # 성능 개선 Phase 1: 데이터베이스 연결 풀링 최적화
 engine = create_engine(
-    MYSQL_URL,
+    settings.database.url,
     echo=False,  # SQL 쿼리 로깅 비활성화 (성능 향상)
     # === 연결 풀링 설정 (성능 개선의 핵심) ===
     pool_size=20,  # 기본 연결 풀 크기를 다시 줄임 (100 → 20)

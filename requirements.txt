@@ -47,3 +47,19 @@ uvicorn==0.34.2
 wheel @ file:///opt/homebrew/Cellar/python%403.12/3.12.5/libexec/wheel-0.44.0-py3-none-any.whl#sha256=8d8a590e50bda8422000110e90bc730ebfcd8363d2de80793ac819b7f252e97d
 yarl==1.20.1
 yfinance==0.2.57
+structlog==24.4.0
+python-json-logger==2.0.7
+pydantic-settings==2.1.0
+
+# Monitoring dependencies
+prometheus-client==0.20.0
+aiohttp==3.12.14
+
+# Testing dependencies
+pytest==8.0.0
+pytest-asyncio==0.23.5
+pytest-cov==4.0.0
+pytest-mock==3.12.0
+requests-mock==1.11.0
+aioresponses==0.7.6
+factory-boy==3.3.0

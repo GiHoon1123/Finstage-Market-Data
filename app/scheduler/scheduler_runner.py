@@ -73,6 +73,10 @@ from app.common.utils.parallel_executor import (
     ParallelExecutor,
     measure_execution_time,
 )
+from app.common.utils.logging_config import get_logger
+from app.common.exceptions.handlers import handle_scheduler_errors, safe_execute
+
+logger = get_logger("scheduler_runner")
 from app.common.infra.database.config.database_config import (
     Base,
     engine,
@@ -80,60 +84,105 @@ from app.common.infra.database.config.database_config import (
 )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_investing_economic_news():
-    print("📡 Investing 경제 뉴스 크롤링 시작")
+    logger.info("news_crawling_started", source="investing_economic")
 
     for symbol in INVESTING_ECONOMIC_SYMBOLS:
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        InvestingNewsCrawler(symbol).process_all()
+        logger.debug("processing_symbol", source="investing_economic", symbol=symbol)
+        safe_execute(
+            lambda: InvestingNewsCrawler(symbol).process_all(),
+            default_return=None,
+            log_errors=True,
+        )
 
-    print("✅ Investing 경제 뉴스 크롤링 완료")
+    logger.info(
+        "news_crawling_completed",
+        source="investing_economic",
+        total_count=len(INVESTING_ECONOMIC_SYMBOLS),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_investing_market_news():
-    print("📡 Investing 시장 뉴스 크롤링 시작")
+    logger.info("news_crawling_started", source="investing_market")
 
     for symbol in INVESTING_MARKET_SYMBOLS:
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        InvestingNewsCrawler(symbol).process_all()
+        logger.debug("processing_symbol", source="investing_market", symbol=symbol)
+        safe_execute(
+            lambda: InvestingNewsCrawler(symbol).process_all(),
+            default_return=None,
+            log_errors=True,
+        )
 
-    print("✅ Investing 시장 뉴스 크롤링 완료")
+    logger.info(
+        "news_crawling_completed",
+        source="investing_market",
+        total_count=len(INVESTING_MARKET_SYMBOLS),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_yahoo_futures_news():
-    print("🕒 Yahoo 선물 뉴스 크롤링 시작")
+    logger.info("news_crawling_started", source="yahoo_futures")
     for symbol in FUTURES_SYMBOLS:
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        YahooNewsCrawler(symbol).process_all()
+        logger.debug("processing_symbol", source="yahoo_futures", symbol=symbol)
+        safe_execute(
+            lambda: YahooNewsCrawler(symbol).process_all(),
+            default_return=None,
+            log_errors=True,
+        )
 
-    print("✅ Yahoo 선물 뉴스 크롤링 완료")
+    logger.info(
+        "news_crawling_completed",
+        source="yahoo_futures",
+        total_count=len(FUTURES_SYMBOLS),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_yahoo_index_news():
-    print("🕒 Yahoo 지수 뉴스 크롤링 시작")
+    logger.info("news_crawling_started", source="yahoo_index")
     for symbol in INDEX_SYMBOLS:
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        YahooNewsCrawler(symbol).process_all()
+        logger.debug("processing_symbol", source="yahoo_index", symbol=symbol)
+        safe_execute(
+            lambda: YahooNewsCrawler(symbol).process_all(),
+            default_return=None,
+            log_errors=True,
+        )
 
-    print("✅ Yahoo 지수 뉴스 크롤링 완료")
+    logger.info(
+        "news_crawling_completed", source="yahoo_index", total_count=len(INDEX_SYMBOLS)
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_yahoo_stock_news():
-    print("🕒 Yahoo 종목 뉴스 크롤링 시작")
+    logger.info("news_crawling_started", source="yahoo_stocks")
     for symbol in STOCK_SYMBOLS:
-        print(f"🔍 {symbol} 뉴스 처리 중...")
-        YahooNewsCrawler(symbol).process_all()
+        logger.debug("processing_symbol", source="yahoo_stocks", symbol=symbol)
+        safe_execute(
+            lambda: YahooNewsCrawler(symbol).process_all(),
+            default_return=None,
+            log_errors=True,
+        )
 
-    print("✅ Yahoo 종목 뉴스 크롤링 완료")
+    logger.info(
+        "news_crawling_completed", source="yahoo_stocks", total_count=len(STOCK_SYMBOLS)
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_high_price_update_job():
-    print("📈 상장 후 최고가 갱신 시작")
+    logger.info("high_price_update_started")
 
     @measure_execution_time
     def process_symbol(symbol):
-        service = PriceHighRecordService()
-        return service.update_all_time_high(symbol)
+        return safe_execute(
+            lambda: PriceHighRecordService().update_all_time_high(symbol),
+            default_return=None,
+            log_errors=True,
+        )
 
     executor = ParallelExecutor(max_workers=5)
     results = executor.run_symbol_tasks_parallel(
@@ -141,16 +190,25 @@ def run_high_price_update_job():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 최고가 갱신 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "high_price_update_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_close_snapshot_job():
-    print("🕓 전일 종가 저장 시작")
+    logger.info("previous_close_snapshot_started")
 
     @measure_execution_time
     def process_symbol(symbol):
-        service = PriceSnapshotService()
-        return service.save_previous_close_if_needed(symbol)
+        return safe_execute(
+            lambda: PriceSnapshotService().save_previous_close_if_needed(symbol),
+            default_return=None,
+            log_errors=True,
+        )
 
     executor = ParallelExecutor(max_workers=5)
     results = executor.run_symbol_tasks_parallel(
@@ -158,16 +216,25 @@ def run_previous_close_snapshot_job():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 전일 종가 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "previous_close_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_high_snapshot_job():
-    print("🔺 전일 고점 저장 시작")
+    logger.info("previous_high_snapshot_started")
 
     @measure_execution_time
     def process_symbol(symbol):
-        service = PriceSnapshotService()
-        return service.save_previous_high_if_needed(symbol)
+        return safe_execute(
+            lambda: PriceSnapshotService().save_previous_high_if_needed(symbol),
+            default_return=None,
+            log_errors=True,
+        )
 
     executor = ParallelExecutor(max_workers=5)
     results = executor.run_symbol_tasks_parallel(
@@ -175,26 +242,60 @@ def run_previous_high_snapshot_job():
     )
 
     success_count = sum(1 for r in results if r is not None)
-    print(f"✅ 전일 고점 저장 완료: {success_count}/{len(SYMBOL_PRICE_MAP)} 성공")
+    logger.info(
+        "previous_high_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_previous_low_snapshot_job():
-    print("🔻 전일 저점 저장 시작")
+    logger.info("previous_low_snapshot_started")
     service = PriceSnapshotService()
+    success_count = 0
+
     for symbol in SYMBOL_PRICE_MAP:
         time.sleep(5.0)
-        service.save_previous_low_if_needed(symbol)
-    print("✅ 전일 저점 저장 완료")
+        result = safe_execute(
+            lambda: service.save_previous_low_if_needed(symbol),
+            default_return=None,
+            log_errors=True,
+        )
+        if result is not None:
+            success_count += 1
+
+    logger.info(
+        "previous_low_snapshot_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_realtime_price_monitor_job():
-    print("📡 실시간 가격 모니터링 시작")
+    logger.info("realtime_price_monitoring_started")
     service = PriceMonitorService()
+    success_count = 0
+
     for symbol in SYMBOL_PRICE_MAP:
         time.sleep(5.0)
-        service.check_price_against_baseline(symbol)
+        result = safe_execute(
+            lambda: service.check_price_against_baseline(symbol),
+            default_return=None,
+            log_errors=True,
+        )
+        if result is not None:
+            success_count += 1
 
-    print("✅ 실시간 가격 모니터링 완료")
+    logger.info(
+        "realtime_price_monitoring_completed",
+        success_count=success_count,
+        total_count=len(SYMBOL_PRICE_MAP),
+        success_rate=success_count / len(SYMBOL_PRICE_MAP),
+    )
 
 
 # =============================================================================
@@ -202,6 +303,7 @@ def run_realtime_price_monitor_job():
 # =============================================================================
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_daily_index_analysis():
     """
     주요 지수 상태 리포트 생성 및 전송
@@ -210,59 +312,53 @@ def run_daily_index_analysis():
     - 기존 임계점 돌파 알림 → 상태 리포트 형태로 변경
     - 1시간마다 실행하여 현재 상태 정보 제공
     """
-    print("📊 주요 지수 상태 리포트 생성 시작")
-    try:
-        # 🆕 1단계: 최신 일봉 데이터 수집 및 저장
+    logger.info("daily_index_analysis_started")
 
-        collection_service = DailyDataCollectionService()
-        collection_result = collection_service.collect_and_save_daily_data(
-            ["^IXIC", "^GSPC"]
-        )
+    # 🆕 1단계: 최신 일봉 데이터 수집 및 저장
+    collection_service = DailyDataCollectionService()
+    collection_result = collection_service.collect_and_save_daily_data(
+        ["^IXIC", "^GSPC"]
+    )
 
-        print(
-            f"   💾 데이터 수집 결과: 수집 {collection_result.get('summary', {}).get('collected', 0)}개, "
-            f"스킵 {collection_result.get('summary', {}).get('skipped', 0)}개"
-        )
+    logger.info(
+        "daily_data_collection_completed",
+        collected=collection_result.get("summary", {}).get("collected", 0),
+        skipped=collection_result.get("summary", {}).get("skipped", 0),
+    )
 
-        # 🆕 2단계: 상태 리포트 생성 및 전송 (기존 + 신규 전략 통합)
-        service = TechnicalMonitorService()
+    # 🆕 2단계: 상태 리포트 생성 및 전송 (기존 + 신규 전략 통합)
+    service = TechnicalMonitorService()
 
-        # 한시간마다 상태 리포트 생성 (임계점 돌파 대신)
-        service.run_hourly_status_report()
+    # 한시간마다 상태 리포트 생성 (임계점 돌파 대신)
+    service.run_hourly_status_report()
 
-        print("✅ 주요 지수 상태 리포트 생성 완료")
-    except Exception as e:
-        print(f"❌ 주요 지수 상태 리포트 생성 실패: {e}")
+    logger.info("daily_index_analysis_completed")
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_all_technical_analysis():
     """
     모든 기술적 지표 분석을 한번에 실행
     - 테스트용 또는 수동 실행용
     - 나스닥 지수 + S&P 500 지수 통합 분석
     """
-    print("🚀 전체 기술적 지표 분석 시작")
-    try:
-        service = TechnicalMonitorService()
-        service.run_all_technical_monitoring()
-        print("✅ 전체 기술적 지표 분석 완료")
-    except Exception as e:
-        print(f"❌ 전체 기술적 지표 분석 실패: {e}")
+    logger.info("all_technical_analysis_started")
+    service = TechnicalMonitorService()
+    service.run_all_technical_monitoring()
+    logger.info("all_technical_analysis_completed")
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_technical_alerts():
     """
     기술적 지표 알림 테스트 (장이 닫힌 시간에도 테스트 가능)
     - 가짜 데이터로 모든 알림 타입 테스트
     - 텔레그램 알림이 제대로 가는지 확인용
     """
-    print("🧪 기술적 지표 알림 테스트 시작")
-    try:
-        service = TechnicalMonitorService()
-        service.test_all_technical_alerts()
-        print("✅ 기술적 지표 알림 테스트 완료")
-    except Exception as e:
-        print(f"❌ 기술적 지표 알림 테스트 실패: {e}")
+    logger.info("technical_alerts_test_started")
+    service = TechnicalMonitorService()
+    service.test_all_technical_alerts()
+    logger.info("technical_alerts_test_completed")
 
 
 """
@@ -274,6 +370,7 @@ test_single_technical_alert("dead_cross")     # 데드크로스
 """
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_single_technical_alert(alert_type: str = "ma_breakout"):
     """
     단일 기술적 지표 알림 테스트
@@ -281,13 +378,10 @@ def test_single_technical_alert(alert_type: str = "ma_breakout"):
     Args:
         alert_type: 테스트할 알림 타입
     """
-    print(f"🧪 {alert_type} 알림 테스트 시작")
-    try:
-        service = TechnicalMonitorService()
-        service.test_single_alert(alert_type)
-        print(f"✅ {alert_type} 알림 테스트 완료")
-    except Exception as e:
-        print(f"❌ {alert_type} 알림 테스트 실패: {e}")
+    logger.info("single_alert_test_started", alert_type=alert_type)
+    service = TechnicalMonitorService()
+    service.test_single_alert(alert_type)
+    logger.info("single_alert_test_completed", alert_type=alert_type)
 
 
 # =============================================================================
@@ -295,6 +389,7 @@ def test_single_technical_alert(alert_type: str = "ma_breakout"):
 # =============================================================================
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_outcome_tracking_update():
     """
     신호 결과 추적 업데이트
@@ -302,50 +397,44 @@ def run_outcome_tracking_update():
     - 1시간마다 실행하여 시간대별 성과 수집
     - Phase 2의 핵심 기능
     """
-    print("📈 신호 결과 추적 업데이트 시작")
-    try:
-        service = OutcomeTrackingService()
-        result = service.update_outcomes(hours_old=1)
+    logger.info("outcome_tracking_update_started")
+    service = OutcomeTrackingService()
+    result = service.update_outcomes(hours_old=1)
 
-        if "error" in result:
-            print(f"❌ 결과 추적 업데이트 실패: {result['error']}")
-        else:
-            print(
-                f"✅ 결과 추적 업데이트 완료: {result['updated']}개 업데이트, {result['completed']}개 완료"
-            )
-
-    except Exception as e:
-        print(f"❌ 결과 추적 업데이트 실패: {e}")
+    if "error" in result:
+        logger.error("outcome_tracking_update_failed", error=result["error"])
+    else:
+        logger.info(
+            "outcome_tracking_update_completed",
+            updated=result["updated"],
+            completed=result["completed"],
+        )
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_outcome_tracking():
     """
     결과 추적 기능 테스트 (개발용)
     - 최근 신호 중 하나를 선택하여 결과 추적 테스트
     - 가상의 가격 데이터로 전체 프로세스 검증
     """
-    print("🧪 결과 추적 기능 테스트 시작")
-    try:
-        service = OutcomeTrackingService()
+    logger.info("outcome_tracking_test_started")
+    service = OutcomeTrackingService()
 
-        # 테스트할 신호 ID (실제로는 최근 신호 중 하나를 선택해야 함)
-        # 여기서는 ID 1을 예시로 사용
-        test_signal_id = 1
+    # 테스트할 신호 ID (실제로는 최근 신호 중 하나를 선택해야 함)
+    # 여기서는 ID 1을 예시로 사용
+    test_signal_id = 1
 
-        result = service.test_outcome_tracking(test_signal_id)
+    result = service.test_outcome_tracking(test_signal_id)
 
-        if "error" in result:
-            print(f"❌ 결과 추적 테스트 실패: {result['error']}")
-        else:
-            print(f"✅ 결과 추적 테스트 완료: 신호 ID {test_signal_id}")
-            print(f"   - 원본 가격: ${result['test_data']['original_price']:.2f}")
-            print(f"   - 1시간 후: ${result['test_data']['price_1h']:.2f}")
-            print(f"   - 1일 후: ${result['test_data']['price_1d']:.2f}")
-            print(f"   - 1주 후: ${result['test_data']['price_1w']:.2f}")
-            print(f"   - 1개월 후: ${result['test_data']['price_1m']:.2f}")
-
-    except Exception as e:
-        print(f"❌ 결과 추적 테스트 실패: {e}")
+    if "error" in result:
+        logger.error("outcome_tracking_test_failed", error=result["error"])
+    else:
+        logger.info(
+            "outcome_tracking_test_completed",
+            signal_id=test_signal_id,
+            test_data=result["test_data"],
+        )
 
 
 # =============================================================================
@@ -353,6 +442,7 @@ def test_outcome_tracking():
 # =============================================================================
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_collect_historical_data():
     """
     테스트 메서드 1: 10년치 과거 데이터 수집
@@ -387,6 +477,7 @@ def test_collect_historical_data():
         print(f"❌ 과거 데이터 수집 테스트 실패: {e}")
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_generate_historical_signals():
     """
     테스트 메서드 2: 과거 데이터 기반 신호 생성
@@ -426,6 +517,7 @@ def test_generate_historical_signals():
         print(f"❌ 신호 생성 테스트 실패: {e}")
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_run_backtesting():
     """
     테스트 메서드 3: 백테스팅 실행
@@ -485,6 +577,7 @@ def test_run_backtesting():
         print(f"❌ 백테스팅 테스트 실패: {e}")
 
 
+@handle_scheduler_errors(reraise=False, return_on_error=None)
 def test_run_pattern_analysis():
     """
     테스트 메서드 4: 패턴 분석 실행

@@ -1,8 +1,25 @@
 # ENV_MODE=dev uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
 # ENV_MODE=test uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
 # ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8081
+
+import os
+from dotenv import load_dotenv
+
+# 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
+mode = os.getenv("ENV_MODE", "dev")
+env_file = f".env.{mode}"
+load_dotenv(dotenv_path=env_file)
+
 from fastapi import FastAPI
 from app.common.infra.database.config.database_config import Base, engine
+from app.common.utils.logging_config import setup_logging, get_logger
+from app.common.config.settings import validate_settings, settings
+
+# 설정 검증 및 로깅 시스템 초기화
+validate_settings()
+setup_logging()
+logger = get_logger("main")
+
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router
@@ -24,9 +41,6 @@ from app.technical_analysis.web.route.daily_report_router import (
     router as daily_report_router,
 )
 
-
-import os
-from dotenv import load_dotenv
 from app.scheduler.scheduler_runner import start_scheduler
 
 # 성능 모니터링 관련 import (함수 내부에서 사용)
@@ -35,17 +49,28 @@ try:
 except ImportError:
     stop_monitoring = None
 
-# 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
-mode = os.getenv("ENV_MODE", "dev")
-env_file = f".env.{mode}"
-load_dotenv(dotenv_path=env_file)
+# 모니터링 시스템 import
+from app.common.monitoring.routes import monitoring_router, metrics_middleware
+from app.common.monitoring.metrics import start_metrics_server, stop_metrics_server
+from app.common.monitoring.alerts import auto_alert_monitor
 
+# 데이터베이스 최적화 시스템 import
+from app.common.infra.database.monitoring.query_monitor import query_monitor
+from app.common.infra.database.optimization.connection_pool_manager import (
+    initialize_pool_manager,
+    monitor_connection_pool,
+    ConnectionPoolConfig,
+)
 
 app = FastAPI(
     title="Finstage Market Data API",
-    version="1.0.0",
+    version=settings.version,
     description="주가 및 재무데이터 수집/제공 서비스",
+    debug=settings.debug,
 )
+
+# 모니터링 미들웨어 추가
+app.middleware("http")(metrics_middleware)
 
 # 라우터 등록
 app.include_router(financial_router, prefix="/api/financials", tags=["Financial"])
@@ -101,13 +126,40 @@ app.include_router(
     tags=["Async API"],
 )
 
+# 모니터링 라우터 등록
+app.include_router(monitoring_router)
+
+# 데이터베이스 최적화 라우터 등록
+from app.common.infra.database.routes import db_router
+
+app.include_router(db_router, prefix="/api")
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
 
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
+    # 데이터베이스 최적화 시스템 초기화
+    try:
+        # 쿼리 모니터링 설정
+        query_monitor.setup_monitoring(engine)
+        logger.info("database_query_monitoring_enabled")
+
+        # 연결 풀 관리자 초기화
+        pool_config = ConnectionPoolConfig(
+            min_pool_size=5,
+            max_pool_size=20,
+            max_overflow=30,
+            utilization_threshold_high=0.8,
+            utilization_threshold_low=0.3,
+        )
+        initialize_pool_manager(engine, pool_config)
+        logger.info("database_connection_pool_manager_initialized")
+
+    except Exception as e:
+        logger.error("database_optimization_setup_failed", error=str(e))
+
     # 병렬 처리 스케줄러 사용
     from app.scheduler.parallel_scheduler import start_parallel_scheduler
 
@@ -117,7 +169,33 @@ def startup_event():
     from app.common.utils.performance_monitor import start_monitoring
 
     start_monitoring()
-    print("✅ 성능 모니터링 시스템 시작됨")
+    logger.info("performance_monitoring_started")
+
+    # Prometheus 메트릭 서버 시작
+    try:
+        start_metrics_server(port=8001)
+        logger.info("prometheus_metrics_server_started", port=8001)
+    except Exception as e:
+        logger.error("prometheus_metrics_server_start_failed", error=str(e))
+
+    # 자동 알림 모니터링 시작
+    import asyncio
+
+    asyncio.create_task(auto_alert_monitor.start_monitoring())
+    logger.info("auto_alert_monitoring_started")
+
+    # 연결 풀 모니터링 시작 (5분마다)
+    async def pool_monitoring_task():
+        while True:
+            try:
+                await monitor_connection_pool()
+                await asyncio.sleep(300)  # 5분 대기
+            except Exception as e:
+                logger.error("connection_pool_monitoring_error", error=str(e))
+                await asyncio.sleep(300)
+
+    asyncio.create_task(pool_monitoring_task())
+    logger.info("database_connection_pool_monitoring_started")
 
 
 @app.on_event("shutdown")
@@ -125,26 +203,15 @@ def shutdown_event():
     # 성능 모니터링 시스템 종료
     if stop_monitoring:
         stop_monitoring()
-        print("✅ 성능 모니터링 시스템 종료됨")
+        logger.info("performance_monitoring_stopped")
 
-    # 성능 모니터링 시스템 시작
-    from app.common.utils.performance_monitor import start_monitoring
+    # Prometheus 메트릭 서버 종료
+    try:
+        stop_metrics_server()
+        logger.info("prometheus_metrics_server_stopped")
+    except Exception as e:
+        logger.error("prometheus_metrics_server_stop_failed", error=str(e))
 
-    start_monitoring()
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    # 성능 모니터링 시스템 종료
-    from app.common.utils.performance_monitor import stop_monitoring
-
-    stop_monitoring()
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    # 성능 모니터링 시스템 종료
-    from app.common.utils.performance_monitor import stop_monitoring
-
-    stop_monitoring()
-    print("✅ 성능 모니터링 시스템 종료됨")
+    # 자동 알림 모니터링 종료
+    auto_alert_monitor.stop_monitoring()
+    logger.info("auto_alert_monitoring_stopped")

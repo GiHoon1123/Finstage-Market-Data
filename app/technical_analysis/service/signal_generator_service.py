@@ -26,6 +26,9 @@ from app.technical_analysis.service.technical_indicator_service import (
     TechnicalIndicatorService,
 )
 from app.technical_analysis.service.signal_storage_service import SignalStorageService
+from app.common.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class SignalGeneratorService:
@@ -71,9 +74,13 @@ class SignalGeneratorService:
         if end_date is None:
             end_date = datetime.now().date()
 
-        print(f"🔍 기술적 신호 생성 시작")
-        print(f"   - 심볼: {symbols}")
-        print(f"   - 기간: {start_date} ~ {end_date}")
+        logger.info(
+            "technical_signal_generation_started",
+            symbols=symbols,
+            start_date=str(start_date),
+            end_date=str(end_date),
+            symbol_count=len(symbols),
+        )
 
         session, repository = self._get_session_and_repository()
 
@@ -86,7 +93,7 @@ class SignalGeneratorService:
 
         try:
             for symbol in symbols:
-                print(f"\n📊 {symbol} 신호 생성 중...")
+                logger.info("symbol_signal_generation_started", symbol=symbol)
 
                 result = self.generate_symbol_signals(symbol, start_date, end_date)
 
@@ -98,16 +105,25 @@ class SignalGeneratorService:
                     "saved_signals", 0
                 )
 
-                print(f"✅ {symbol} 완료: {result.get('saved_signals', 0)}개 신호 생성")
+                logger.info(
+                    "symbol_signal_generation_completed",
+                    symbol=symbol,
+                    saved_signals=result.get("saved_signals", 0),
+                )
 
-            print(f"\n🎉 전체 신호 생성 완료!")
-            print(f"   - 총 신호: {total_results['summary']['total_signals']}개")
-            print(f"   - 저장됨: {total_results['summary']['total_saved']}개")
+            logger.info(
+                "all_signal_generation_completed",
+                total_signals=total_results["summary"]["total_signals"],
+                total_saved=total_results["summary"]["total_saved"],
+                symbols_processed=len(symbols),
+            )
 
             return total_results
 
         except Exception as e:
-            print(f"❌ 신호 생성 실패: {e}")
+            logger.error(
+                "signal_generation_failed", error=str(e), error_type=type(e).__name__
+            )
             return {"error": str(e)}
         finally:
             if session:
@@ -138,7 +154,9 @@ class SignalGeneratorService:
             if len(daily_data) < 200:  # 최소 200일 데이터 필요
                 return {"error": f"{symbol} 데이터 부족 (최소 200일 필요)"}
 
-            print(f"   📊 {symbol} 분석 데이터: {len(daily_data)}개")
+            logger.info(
+                "symbol_analysis_data_loaded", symbol=symbol, data_count=len(daily_data)
+            )
 
             # 2. pandas DataFrame으로 변환
             df = self._convert_to_dataframe(daily_data)
@@ -194,7 +212,12 @@ class SignalGeneratorService:
             }
 
         except Exception as e:
-            print(f"❌ {symbol} 신호 생성 실패: {e}")
+            logger.error(
+                "symbol_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return {"error": str(e)}
 
     # =================================================================
@@ -289,7 +312,12 @@ class SignalGeneratorService:
                         )
 
         except Exception as e:
-            print(f"❌ {symbol} 이동평균선 신호 생성 실패: {e}")
+            logger.error(
+                "moving_average_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
         return signals
 
@@ -336,7 +364,12 @@ class SignalGeneratorService:
                     )
 
         except Exception as e:
-            print(f"❌ {symbol} RSI 신호 생성 실패: {e}")
+            logger.error(
+                "rsi_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
         return signals
 
@@ -404,7 +437,12 @@ class SignalGeneratorService:
                     )
 
         except Exception as e:
-            print(f"❌ {symbol} 볼린저 밴드 신호 생성 실패: {e}")
+            logger.error(
+                "bollinger_band_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
         return signals
 
@@ -433,8 +471,12 @@ class SignalGeneratorService:
 
                 # 골든크로스: 이전에는 50일선이 200일선 아래, 지금은 위
                 if prev_50 <= prev_200 and current_50 > current_200:
-                    print(
-                        f"🚀 골든크로스 발견: {df.index[i]} - 50일선: {current_50:.2f}, 200일선: {current_200:.2f}"
+                    logger.info(
+                        "golden_cross_detected",
+                        symbol=symbol,
+                        date=str(df.index[i]),
+                        ma_50=current_50,
+                        ma_200=current_200,
                     )
                     signals.append(
                         {
@@ -457,8 +499,12 @@ class SignalGeneratorService:
 
                 # 데드크로스: 이전에는 50일선이 200일선 위, 지금은 아래
                 elif prev_50 >= prev_200 and current_50 < current_200:
-                    print(
-                        f"💀 데드크로스 발견: {df.index[i]} - 50일선: {current_50:.2f}, 200일선: {current_200:.2f}"
+                    logger.info(
+                        "death_cross_detected",
+                        symbol=symbol,
+                        date=str(df.index[i]),
+                        ma_50=current_50,
+                        ma_200=current_200,
                     )
                     signals.append(
                         {
@@ -480,7 +526,12 @@ class SignalGeneratorService:
                     )
 
         except Exception as e:
-            print(f"❌ {symbol} 크로스 신호 생성 실패: {e}")
+            logger.error(
+                "cross_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
         return signals
 
