@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-진행 중인 결과 추적 상태 확인 스크립트
+미완료 결과 확인 스크립트
+
+이 스크립트는 아직 완료되지 않은 결과 추적들을 확인합니다.
 """
 
 import os
 import sys
+import traceback
 from datetime import datetime, timezone
 
 # 환경 변수 설정
@@ -20,6 +23,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from app.technical_analysis.service.enhanced_outcome_tracking_service import (
     EnhancedOutcomeTrackingService,
 )
+from sqlalchemy import text
 
 
 def main():
@@ -56,8 +60,6 @@ def main():
         ORDER BY so.created_at DESC
         LIMIT 10
         """
-
-        from sqlalchemy import text
 
         result = session.execute(text(query))
         results = result.fetchall()
@@ -134,8 +136,6 @@ def main():
 
     except Exception as e:
         print(f"❌ 오류 발생: {e}")
-        import traceback
-
         traceback.print_exc()
     finally:
         # 세션 정리

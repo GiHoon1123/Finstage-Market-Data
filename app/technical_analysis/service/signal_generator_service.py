@@ -27,6 +27,8 @@ from app.technical_analysis.service.technical_indicator_service import (
 )
 from app.technical_analysis.service.signal_storage_service import SignalStorageService
 from app.common.utils.logging_config import get_logger
+from app.common.utils.memory_cache import cache_technical_analysis
+from app.common.utils.memory_optimizer import optimize_dataframe_memory, memory_monitor
 
 logger = get_logger(__name__)
 
@@ -51,6 +53,7 @@ class SignalGeneratorService:
     # 전체 신호 생성
     # =================================================================
 
+    @memory_monitor
     def generate_all_signals(
         self, symbols: List[str] = None, start_date: date = None, end_date: date = None
     ) -> Dict[str, Any]:
@@ -129,6 +132,8 @@ class SignalGeneratorService:
             if session:
                 session.close()
 
+    @memory_monitor
+    @cache_technical_analysis(ttl=300)  # 5분 캐싱
     def generate_symbol_signals(
         self, symbol: str, start_date: date, end_date: date
     ) -> Dict[str, Any]:
@@ -161,42 +166,37 @@ class SignalGeneratorService:
             # 2. pandas DataFrame으로 변환
             df = self._convert_to_dataframe(daily_data)
 
-            # 3. 각 지표별 신호 생성
+            # DataFrame 메모리 최적화
+            df = optimize_dataframe_memory(df)
+
+            # 3. 기술적 지표 미리 계산 (중복 계산 방지)
+            indicators = self._calculate_all_indicators(df)
+
+            # 4. 각 지표별 신호 생성
             signals = []
 
             # 이동평균선 신호
-            ma_signals = self._generate_ma_signals(symbol, df)
+            ma_signals = self._generate_ma_signals_optimized(symbol, df, indicators)
             signals.extend(ma_signals)
 
             # RSI 신호
-            rsi_signals = self._generate_rsi_signals(symbol, df)
+            rsi_signals = self._generate_rsi_signals_optimized(symbol, df, indicators)
             signals.extend(rsi_signals)
 
             # 볼린저 밴드 신호
-            bb_signals = self._generate_bollinger_signals(symbol, df)
+            bb_signals = self._generate_bollinger_signals_optimized(
+                symbol, df, indicators
+            )
             signals.extend(bb_signals)
 
             # 크로스 신호
-            cross_signals = self._generate_cross_signals(symbol, df)
+            cross_signals = self._generate_cross_signals_optimized(
+                symbol, df, indicators
+            )
             signals.extend(cross_signals)
 
-            # 4. 신호 저장
-            saved_count = 0
-            for signal_data in signals:
-                saved_signal = self.signal_storage_service.save_signal(
-                    symbol=signal_data["symbol"],
-                    signal_type=signal_data["signal_type"],
-                    timeframe="1day",
-                    current_price=signal_data["current_price"],
-                    indicator_value=signal_data.get("indicator_value"),
-                    signal_strength=signal_data.get("signal_strength"),
-                    volume=signal_data.get("volume"),
-                    triggered_at=signal_data["triggered_at"],
-                    check_duplicate=False,  # 과거 데이터는 중복 체크 안함
-                )
-
-                if saved_signal:
-                    saved_count += 1
+            # 5. 신호 배치 저장 (메모리 효율성을 위해)
+            saved_count = self._save_signals_batch(signals)
 
             return {
                 "symbol": symbol,
@@ -221,9 +221,365 @@ class SignalGeneratorService:
             return {"error": str(e)}
 
     # =================================================================
-    # 개별 지표 신호 생성
+    # 지표 계산 최적화
     # =================================================================
 
+    @memory_monitor
+    def _calculate_all_indicators(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """모든 기술적 지표를 한 번에 계산하여 중복 계산 방지"""
+        indicators = {}
+
+        try:
+            # 이동평균선
+            indicators["ma_50"] = self.indicator_service.calculate_moving_average(
+                df["close"], 50
+            )
+            indicators["ma_200"] = self.indicator_service.calculate_moving_average(
+                df["close"], 200
+            )
+
+            # RSI
+            indicators["rsi"] = self.indicator_service.calculate_rsi(df["close"])
+
+            # 볼린저 밴드
+            indicators["bollinger"] = self.indicator_service.calculate_bollinger_bands(
+                df["close"]
+            )
+
+            logger.info("all_indicators_calculated", indicators_count=len(indicators))
+
+        except Exception as e:
+            logger.error("indicator_calculation_failed", error=str(e))
+
+        return indicators
+
+    # =================================================================
+    # 개별 지표 신호 생성 (최적화된 버전)
+    # =================================================================
+
+    @memory_monitor
+    def _generate_ma_signals_optimized(
+        self, symbol: str, df: pd.DataFrame, indicators: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """이동평균선 신호 생성 (최적화된 버전)"""
+        signals = []
+
+        try:
+            ma_50 = indicators.get("ma_50")
+            ma_200 = indicators.get("ma_200")
+
+            if ma_50 is None or ma_200 is None:
+                return signals
+
+            # 각 날짜별로 돌파 체크
+            for i in range(1, len(df)):
+                current_price = df["close"].iloc[i]
+                prev_price = df["close"].iloc[i - 1]
+                current_date = df.index[i]
+
+                # 50일선 돌파 체크
+                if (
+                    i < len(ma_50)
+                    and not pd.isna(ma_50.iloc[i])
+                    and not pd.isna(ma_50.iloc[i - 1])
+                ):
+                    current_ma50 = ma_50.iloc[i]
+                    prev_ma50 = ma_50.iloc[i - 1]
+
+                    breakout = self.indicator_service.detect_ma_breakout(
+                        current_price, current_ma50, prev_price, prev_ma50
+                    )
+
+                    if breakout:
+                        signals.append(
+                            {
+                                "symbol": symbol,
+                                "signal_type": f"MA50_{breakout}",
+                                "triggered_at": pd.Timestamp(
+                                    current_date
+                                ).to_pydatetime(),
+                                "current_price": float(current_price),
+                                "indicator_value": float(current_ma50),
+                                "signal_strength": abs(
+                                    (current_price - current_ma50) / current_ma50
+                                )
+                                * 100,
+                                "volume": (
+                                    int(df["volume"].iloc[i])
+                                    if pd.notna(df["volume"].iloc[i])
+                                    else None
+                                ),
+                            }
+                        )
+
+                # 200일선 돌파 체크
+                if (
+                    i < len(ma_200)
+                    and not pd.isna(ma_200.iloc[i])
+                    and not pd.isna(ma_200.iloc[i - 1])
+                ):
+                    current_ma200 = ma_200.iloc[i]
+                    prev_ma200 = ma_200.iloc[i - 1]
+
+                    breakout = self.indicator_service.detect_ma_breakout(
+                        current_price, current_ma200, prev_price, prev_ma200
+                    )
+
+                    if breakout:
+                        signals.append(
+                            {
+                                "symbol": symbol,
+                                "signal_type": f"MA200_{breakout}",
+                                "triggered_at": pd.Timestamp(
+                                    current_date
+                                ).to_pydatetime(),
+                                "current_price": float(current_price),
+                                "indicator_value": float(current_ma200),
+                                "signal_strength": abs(
+                                    (current_price - current_ma200) / current_ma200
+                                )
+                                * 100,
+                                "volume": (
+                                    int(df["volume"].iloc[i])
+                                    if pd.notna(df["volume"].iloc[i])
+                                    else None
+                                ),
+                            }
+                        )
+
+        except Exception as e:
+            logger.error(
+                "moving_average_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        return signals
+
+    @memory_monitor
+    def _generate_rsi_signals_optimized(
+        self, symbol: str, df: pd.DataFrame, indicators: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """RSI 신호 생성 (최적화된 버전)"""
+        signals = []
+
+        try:
+            rsi = indicators.get("rsi")
+            if rsi is None:
+                return signals
+
+            # 각 날짜별로 RSI 신호 체크
+            for i in range(1, len(df)):
+                if i >= len(rsi) or pd.isna(rsi.iloc[i]) or pd.isna(rsi.iloc[i - 1]):
+                    continue
+
+                current_rsi = rsi.iloc[i]
+                prev_rsi = rsi.iloc[i - 1]
+                current_date = df.index[i]
+
+                rsi_signal = self.indicator_service.detect_rsi_signals(
+                    current_rsi, prev_rsi
+                )
+
+                if rsi_signal:
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": f"RSI_{rsi_signal}",
+                            "triggered_at": pd.Timestamp(current_date).to_pydatetime(),
+                            "current_price": float(df["close"].iloc[i]),
+                            "indicator_value": float(current_rsi),
+                            "signal_strength": abs(
+                                current_rsi - 50
+                            ),  # 중립선(50)에서 얼마나 벗어났는지
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
+
+        except Exception as e:
+            logger.error(
+                "rsi_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        return signals
+
+    @memory_monitor
+    def _generate_bollinger_signals_optimized(
+        self, symbol: str, df: pd.DataFrame, indicators: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """볼린저 밴드 신호 생성 (최적화된 버전)"""
+        signals = []
+
+        try:
+            bollinger = indicators.get("bollinger")
+            if not bollinger:
+                return signals
+
+            # 각 날짜별로 볼린저 밴드 신호 체크
+            for i in range(1, len(df)):
+                if (
+                    i >= len(bollinger["upper"])
+                    or pd.isna(bollinger["upper"].iloc[i])
+                    or pd.isna(bollinger["upper"].iloc[i - 1])
+                ):
+                    continue
+
+                current_price = df["close"].iloc[i]
+                prev_price = df["close"].iloc[i - 1]
+                current_upper = bollinger["upper"].iloc[i]
+                current_lower = bollinger["lower"].iloc[i]
+                prev_upper = bollinger["upper"].iloc[i - 1]
+                prev_lower = bollinger["lower"].iloc[i - 1]
+                current_date = df.index[i]
+
+                bb_signal = self.indicator_service.detect_bollinger_signals(
+                    current_price,
+                    current_upper,
+                    current_lower,
+                    prev_price,
+                    prev_upper,
+                    prev_lower,
+                )
+
+                if bb_signal:
+                    band_value = (
+                        current_upper if "upper" in bb_signal else current_lower
+                    )
+
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": f"BB_{bb_signal}",
+                            "triggered_at": pd.Timestamp(current_date).to_pydatetime(),
+                            "current_price": float(current_price),
+                            "indicator_value": float(band_value),
+                            "signal_strength": abs(
+                                (current_price - band_value) / band_value
+                            )
+                            * 100,
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
+
+        except Exception as e:
+            logger.error(
+                "bollinger_band_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        return signals
+
+    @memory_monitor
+    def _generate_cross_signals_optimized(
+        self, symbol: str, df: pd.DataFrame, indicators: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """크로스 신호 생성 (최적화된 버전)"""
+        signals = []
+
+        try:
+            ma_50 = indicators.get("ma_50")
+            ma_200 = indicators.get("ma_200")
+
+            if ma_50 is None or ma_200 is None:
+                return signals
+
+            # 각 날짜별로 크로스 신호 체크
+            for i in range(1, min(len(ma_50), len(ma_200))):
+                if pd.isna(ma_50.iloc[i]) or pd.isna(ma_200.iloc[i]):
+                    continue
+                if pd.isna(ma_50.iloc[i - 1]) or pd.isna(ma_200.iloc[i - 1]):
+                    continue
+
+                current_50 = ma_50.iloc[i]
+                current_200 = ma_200.iloc[i]
+                prev_50 = ma_50.iloc[i - 1]
+                prev_200 = ma_200.iloc[i - 1]
+
+                # 골든크로스: 이전에는 50일선이 200일선 아래, 지금은 위
+                if prev_50 <= prev_200 and current_50 > current_200:
+                    logger.info(
+                        "golden_cross_detected",
+                        symbol=symbol,
+                        date=str(df.index[i]),
+                        ma_50=current_50,
+                        ma_200=current_200,
+                    )
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": "golden_cross",
+                            "triggered_at": pd.Timestamp(df.index[i]).to_pydatetime(),
+                            "current_price": float(df["close"].iloc[i]),
+                            "indicator_value": float(current_50),
+                            "signal_strength": abs(
+                                (current_50 - current_200) / current_200
+                            )
+                            * 100,
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
+
+                # 데드크로스: 이전에는 50일선이 200일선 위, 지금은 아래
+                elif prev_50 >= prev_200 and current_50 < current_200:
+                    logger.info(
+                        "death_cross_detected",
+                        symbol=symbol,
+                        date=str(df.index[i]),
+                        ma_50=current_50,
+                        ma_200=current_200,
+                    )
+                    signals.append(
+                        {
+                            "symbol": symbol,
+                            "signal_type": "dead_cross",
+                            "triggered_at": pd.Timestamp(df.index[i]).to_pydatetime(),
+                            "current_price": float(df["close"].iloc[i]),
+                            "indicator_value": float(current_50),
+                            "signal_strength": abs(
+                                (current_200 - current_50) / current_200
+                            )
+                            * 100,
+                            "volume": (
+                                int(df["volume"].iloc[i])
+                                if pd.notna(df["volume"].iloc[i])
+                                else None
+                            ),
+                        }
+                    )
+
+        except Exception as e:
+            logger.error(
+                "cross_signal_generation_failed",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        return signals
+
+    # =================================================================
+    # 개별 지표 신호 생성 (기존 버전 - 호환성 유지)
+    # =================================================================
+
+    @memory_monitor
     def _generate_ma_signals(
         self, symbol: str, df: pd.DataFrame
     ) -> List[Dict[str, Any]]:
@@ -321,6 +677,7 @@ class SignalGeneratorService:
 
         return signals
 
+    @memory_monitor
     def _generate_rsi_signals(
         self, symbol: str, df: pd.DataFrame
     ) -> List[Dict[str, Any]]:
@@ -373,6 +730,7 @@ class SignalGeneratorService:
 
         return signals
 
+    @memory_monitor
     def _generate_bollinger_signals(
         self, symbol: str, df: pd.DataFrame
     ) -> List[Dict[str, Any]]:
@@ -446,6 +804,7 @@ class SignalGeneratorService:
 
         return signals
 
+    @memory_monitor
     def _generate_cross_signals(
         self, symbol: str, df: pd.DataFrame
     ) -> List[Dict[str, Any]]:
@@ -539,6 +898,53 @@ class SignalGeneratorService:
     # 유틸리티 메서드
     # =================================================================
 
+    @memory_monitor
+    def _save_signals_batch(
+        self, signals: List[Dict[str, Any]], batch_size: int = 100
+    ) -> int:
+        """신호를 배치로 저장하여 메모리 효율성 향상"""
+        saved_count = 0
+
+        try:
+            # 배치 단위로 신호 저장
+            for i in range(0, len(signals), batch_size):
+                batch = signals[i : i + batch_size]
+
+                for signal_data in batch:
+                    saved_signal = self.signal_storage_service.save_signal(
+                        symbol=signal_data["symbol"],
+                        signal_type=signal_data["signal_type"],
+                        timeframe="1day",
+                        current_price=signal_data["current_price"],
+                        indicator_value=signal_data.get("indicator_value"),
+                        signal_strength=signal_data.get("signal_strength"),
+                        volume=signal_data.get("volume"),
+                        triggered_at=signal_data["triggered_at"],
+                        check_duplicate=False,  # 과거 데이터는 중복 체크 안함
+                    )
+
+                    if saved_signal:
+                        saved_count += 1
+
+                # 배치 처리 후 메모리 정리
+                del batch
+
+                logger.info(
+                    "signal_batch_saved",
+                    batch_start=i,
+                    batch_end=min(i + batch_size, len(signals)),
+                    saved_in_batch=(
+                        saved_count - (i // batch_size) * batch_size
+                        if i > 0
+                        else saved_count
+                    ),
+                )
+
+        except Exception as e:
+            logger.error("batch_signal_save_failed", error=str(e))
+
+        return saved_count
+
     def _convert_to_dataframe(self, daily_data: List) -> pd.DataFrame:
         """DailyPrice 엔티티 리스트를 pandas DataFrame으로 변환"""
         data = []
@@ -558,6 +964,8 @@ class SignalGeneratorService:
         df.set_index("date", inplace=True)
         return df
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
+    @memory_monitor
     def get_signal_statistics(self, symbol: str = None) -> Dict[str, Any]:
         """
         생성된 신호 통계 조회

@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import argparse
+import traceback
 from datetime import datetime, timezone
 
 # 환경 변수 설정
@@ -175,8 +176,6 @@ def main():
 
     except Exception as e:
         print(f"❌ 실행 중 오류 발생: {e}")
-        import traceback
-
         traceback.print_exc()
         sys.exit(1)
 

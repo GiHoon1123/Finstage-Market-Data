@@ -24,6 +24,14 @@ from app.technical_analysis.infra.model.repository.daily_price_repository import
 )
 from app.common.utils.logging_config import get_logger
 
+# 메모리 최적화 임포트
+from app.common.utils.memory_cache import cache_result
+from app.common.utils.memory_optimizer import (
+    optimize_dataframe_memory,
+    memory_monitor,
+    memory_efficient_batch_processor,
+)
+
 logger = get_logger(__name__)
 
 
@@ -46,6 +54,7 @@ class HistoricalDataService:
     # 10년치 과거 데이터 수집
     # =================================================================
 
+    @memory_monitor(threshold_mb=500.0)
     def collect_10_years_data(
         self, symbols: List[str] = None, start_year: int = 2015, end_date: date = None
     ) -> Dict[str, Any]:
@@ -114,6 +123,8 @@ class HistoricalDataService:
             if session:
                 session.close()
 
+    @optimize_dataframe_memory()
+    @memory_monitor(threshold_mb=300.0)
     def collect_symbol_data(
         self, symbol: str, start_date: date, end_date: date
     ) -> Dict[str, Any]:
@@ -244,6 +255,7 @@ class HistoricalDataService:
     # 데이터 상태 확인
     # =================================================================
 
+    @cache_result(cache_name="data_status", ttl=300)  # 5분 캐싱
     def get_data_status(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
         저장된 데이터 상태 확인

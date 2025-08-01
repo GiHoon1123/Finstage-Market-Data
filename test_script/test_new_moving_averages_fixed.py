@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-새로운 이동평균선 테스트 스크립트 (수정된 버전)
+새로운 이동평균선 계산 테스트 스크립트 (수정된 버전)
 
-SMA5, SMA10, SMA21, SMA50, SMA100, SMA200
-EMA9, EMA21, EMA50
-VWAP
+이 스크립트는 개선된 이동평균선 계산 로직을 테스트합니다.
 """
 
 import os
 import sys
+import traceback
 from datetime import datetime
 
-# 상위 디렉토리를 파이썬 경로에 추가
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 프로젝트 루트를 Python 경로에 추가
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
 from app.technical_analysis.service.technical_indicator_service import (
@@ -218,8 +217,6 @@ def main():
 
     except Exception as e:
         print(f"❌ 테스트 실행 중 오류 발생: {e}")
-        import traceback
-
         traceback.print_exc()
 
 

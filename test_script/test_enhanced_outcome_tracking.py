@@ -14,6 +14,7 @@
 """
 
 # 필요한 라이브러리들을 가져옵니다
+import traceback
 from app.technical_analysis.service.enhanced_outcome_tracking_service import (
     EnhancedOutcomeTrackingService,
 )
@@ -59,8 +60,6 @@ def test_outcome_tracking_initialization():
 
     except Exception as e:
         print(f"❌ 결과 추적 초기화 테스트 실패: {e}")
-        import traceback
-
         traceback.print_exc()
         return False
 
@@ -105,8 +104,6 @@ def test_outcome_updates():
 
     except Exception as e:
         print(f"❌ 결과 업데이트 테스트 실패: {e}")
-        import traceback
-
         traceback.print_exc()
         return False
 
@@ -158,8 +155,6 @@ def test_tracking_summary():
 
     except Exception as e:
         print(f"❌ 추적 상황 요약 테스트 실패: {e}")
-        import traceback
-
         traceback.print_exc()
         return False
 

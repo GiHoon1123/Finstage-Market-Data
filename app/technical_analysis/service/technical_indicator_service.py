@@ -11,17 +11,26 @@ from typing import Optional, Tuple, Dict, Any
 from datetime import datetime
 from app.common.constants.technical_settings import MA_PERIODS
 
+# 메모리 최적화 임포트
+from app.common.utils.memory_cache import cache_technical_analysis
+from app.common.utils.memory_optimizer import optimize_dataframe_memory, memory_monitor
+
 
 class TechnicalIndicatorService:
     """기술적 지표 계산을 담당하는 서비스 클래스"""
 
     def __init__(self):
-        pass
+        # 메모리 효율적인 계산을 위한 캐시 키 생성 함수
+        self._cache_key_func = (
+            lambda symbol, period, ma_type="SMA": f"{symbol}_{period}_{ma_type}"
+        )
 
     # =========================================================================
     # 이동평균선 (Moving Average) 계산
     # =========================================================================
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
+    @optimize_dataframe_memory()
     def calculate_moving_average(
         self, prices: pd.Series, period: int, ma_type: str = "SMA"
     ) -> pd.Series:
@@ -63,6 +72,8 @@ class TechnicalIndicatorService:
         """지수이동평균(EMA) 계산"""
         return self.calculate_moving_average(prices, period, "EMA")
 
+    @cache_technical_analysis(ttl=300)  # 5분 캐싱
+    @optimize_dataframe_memory()
     def calculate_vwap(self, df: pd.DataFrame) -> pd.Series:
         """
         거래량가중평균가격(VWAP) 계산
@@ -102,6 +113,8 @@ class TechnicalIndicatorService:
             print(f"❌ VWAP 계산 실패: {e}")
             return pd.Series()
 
+    @memory_monitor(threshold_mb=200.0)
+    @optimize_dataframe_memory()
     def calculate_all_moving_averages(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
         """
         모든 이동평균선을 한번에 계산
@@ -141,6 +154,7 @@ class TechnicalIndicatorService:
     # RSI (Relative Strength Index) 계산
     # =========================================================================
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
     def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
         """
         RSI 지표 계산
@@ -173,6 +187,7 @@ class TechnicalIndicatorService:
             print(f"❌ RSI 계산 실패 (period={period}): {e}")
             return pd.Series()
 
+    @memory_monitor(threshold_mb=50.0)
     def detect_rsi_signals(self, current_rsi: float, prev_rsi: float) -> Optional[str]:
         """
         RSI 신호 감지
@@ -219,6 +234,7 @@ class TechnicalIndicatorService:
     # 볼린저 밴드 (Bollinger Bands) 계산
     # =========================================================================
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
     def calculate_bollinger_bands(
         self, prices: pd.Series, period: int = 20, std_dev: float = 2
     ) -> Dict[str, pd.Series]:
@@ -257,6 +273,7 @@ class TechnicalIndicatorService:
             print(f"❌ 볼린저 밴드 계산 실패: {e}")
             return {}
 
+    @memory_monitor(threshold_mb=50.0)
     def detect_bollinger_signals(
         self,
         current_price: float,
@@ -323,6 +340,7 @@ class TechnicalIndicatorService:
     # 골든크로스 & 데드크로스 감지
     # =========================================================================
 
+    @memory_monitor(threshold_mb=100.0)
     def detect_cross_signals(
         self, short_ma: pd.Series, long_ma: pd.Series
     ) -> Optional[str]:
@@ -408,6 +426,7 @@ class TechnicalIndicatorService:
     # MACD (Moving Average Convergence Divergence) 계산
     # =========================================================================
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
     def calculate_macd(
         self,
         prices: pd.Series,
@@ -508,6 +527,8 @@ class TechnicalIndicatorService:
     # 스토캐스틱 (Stochastic) 계산
     # =========================================================================
 
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
+    @optimize_dataframe_memory()
     def calculate_stochastic(
         self, df: pd.DataFrame, k_period: int = 14, d_period: int = 3
     ) -> Dict[str, pd.Series]:
@@ -676,6 +697,9 @@ class TechnicalIndicatorService:
     # 종합 기술적 분석
     # =========================================================================
 
+    @cache_technical_analysis(ttl=300)  # 5분 캐싱
+    @memory_monitor(threshold_mb=300.0)
+    @optimize_dataframe_memory()
     def analyze_comprehensive_signals(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         종합 기술적 분석 수행

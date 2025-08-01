@@ -39,6 +39,8 @@ from app.technical_analysis.infra.model.repository.technical_signal_repository i
 from app.technical_analysis.infra.model.entity.signal_patterns import SignalPattern
 from app.technical_analysis.infra.model.entity.technical_signals import TechnicalSignal
 from app.common.infra.client.yahoo_price_client import YahooPriceClient
+from app.common.utils.memory_cache import cache_technical_analysis
+from app.common.utils.memory_optimizer import optimize_dataframe_memory, memory_monitor
 
 
 class PatternAnalysisService:
@@ -67,6 +69,8 @@ class PatternAnalysisService:
     # 패턴 발견 및 저장
     # =================================================================
 
+    @memory_monitor
+    @cache_technical_analysis(ttl=600)  # 10분 캐싱
     def discover_patterns(self, symbol: str, timeframe: str) -> Dict[str, Any]:
         """
         특정 심볼의 패턴 자동 발견
@@ -93,35 +97,46 @@ class PatternAnalysisService:
 
             print(f"🔎 {len(sequential_patterns)}개의 패턴 후보 발견")
 
-            # 2. 패턴 저장 (중복 제외)
+            # 2. 패턴 저장 (중복 제외) - 배치 처리
             saved_patterns = []
-            for pattern_data in sequential_patterns:
-                # 패턴 이름으로 중복 체크
-                existing_patterns = pattern_repo.find_by_pattern_name(
-                    pattern_name=pattern_data["pattern_name"], symbol=symbol, limit=1
-                )
+            batch_size = 20  # 메모리 효율성을 위한 배치 크기
 
-                # 이미 존재하는 패턴이면 건너뛰기
-                if existing_patterns:
-                    continue
+            for i in range(0, len(sequential_patterns), batch_size):
+                batch = sequential_patterns[i : i + batch_size]
 
-                # 새 패턴 저장
-                try:
-                    pattern = pattern_repo.create_sequential_pattern(
+                for pattern_data in batch:
+                    # 패턴 이름으로 중복 체크
+                    existing_patterns = pattern_repo.find_by_pattern_name(
                         pattern_name=pattern_data["pattern_name"],
                         symbol=symbol,
-                        timeframe=timeframe,
-                        signal_ids=pattern_data["signal_ids"],
-                        market_condition=self._determine_market_condition(symbol),
+                        limit=1,
                     )
 
-                    saved_patterns.append(pattern)
-                    print(f"✅ 패턴 저장: {pattern_data['pattern_name']}")
+                    # 이미 존재하는 패턴이면 건너뛰기
+                    if existing_patterns:
+                        continue
 
-                except Exception as e:
-                    print(f"⚠️ 패턴 저장 실패: {pattern_data['pattern_name']} - {e}")
+                    # 새 패턴 저장
+                    try:
+                        pattern = pattern_repo.create_sequential_pattern(
+                            pattern_name=pattern_data["pattern_name"],
+                            symbol=symbol,
+                            timeframe=timeframe,
+                            signal_ids=pattern_data["signal_ids"],
+                            market_condition=self._determine_market_condition(symbol),
+                        )
 
-            session.commit()
+                        saved_patterns.append(pattern)
+                        print(f"✅ 패턴 저장: {pattern_data['pattern_name']}")
+
+                    except Exception as e:
+                        print(f"⚠️ 패턴 저장 실패: {pattern_data['pattern_name']} - {e}")
+
+                # 배치 처리 후 메모리 정리
+                del batch
+
+                # 배치별로 커밋하여 메모리 효율성 향상
+                session.commit()
 
             return {
                 "symbol": symbol,
@@ -151,6 +166,8 @@ class PatternAnalysisService:
         finally:
             session.close()
 
+    @memory_monitor
+    @cache_technical_analysis(ttl=300)  # 5분 캐싱
     def _determine_market_condition(self, symbol: str) -> str:
         """
         현재 시장 상황 판단 (간단한 버전)
@@ -166,6 +183,9 @@ class PatternAnalysisService:
             daily_data = self.yahoo_client.get_daily_data(symbol, period="1mo")
             if daily_data is None or len(daily_data) < 20:
                 return "unknown"
+
+            # DataFrame 메모리 최적화
+            daily_data = optimize_dataframe_memory(daily_data)
 
             # 20일 이동평균 계산
             ma_20 = daily_data["close"].rolling(20).mean()
@@ -200,6 +220,8 @@ class PatternAnalysisService:
     # 패턴 성과 분석
     # =================================================================
 
+    @memory_monitor
+    @cache_technical_analysis(ttl=900)  # 15분 캐싱
     def analyze_pattern_performance(
         self,
         pattern_name: Optional[str] = None,
@@ -239,31 +261,43 @@ class PatternAnalysisService:
                     },
                 }
 
-            # 2. 패턴별 상세 분석
+            # 2. 패턴별 상세 분석 (배치 처리)
             detailed_analysis = []
-            for stat in pattern_stats:
-                # 해당 패턴의 모든 인스턴스 조회
-                pattern_instances = pattern_repo.find_by_pattern_name(
-                    pattern_name=stat["pattern_name"], symbol=symbol, limit=100
-                )
+            batch_size = 10  # 메모리 효율성을 위한 배치 크기
 
-                # 성과 지표 계산
-                performance_metrics = self._calculate_pattern_metrics(pattern_instances)
+            for i in range(0, len(pattern_stats), batch_size):
+                batch = pattern_stats[i : i + batch_size]
 
-                detailed_analysis.append(
-                    {
-                        "pattern_name": stat["pattern_name"],
-                        "symbol": stat.get("symbol", "ALL"),
-                        "total_occurrences": stat["total_count"],
-                        "avg_duration_hours": (
-                            float(stat["avg_duration"]) if stat["avg_duration"] else 0.0
-                        ),
-                        "performance_metrics": performance_metrics,
-                        "market_conditions": self._analyze_pattern_market_conditions(
-                            pattern_instances
-                        ),
-                    }
-                )
+                for stat in batch:
+                    # 해당 패턴의 모든 인스턴스 조회
+                    pattern_instances = pattern_repo.find_by_pattern_name(
+                        pattern_name=stat["pattern_name"], symbol=symbol, limit=100
+                    )
+
+                    # 성과 지표 계산
+                    performance_metrics = self._calculate_pattern_metrics(
+                        pattern_instances
+                    )
+
+                    detailed_analysis.append(
+                        {
+                            "pattern_name": stat["pattern_name"],
+                            "symbol": stat.get("symbol", "ALL"),
+                            "total_occurrences": stat["total_count"],
+                            "avg_duration_hours": (
+                                float(stat["avg_duration"])
+                                if stat["avg_duration"]
+                                else 0.0
+                            ),
+                            "performance_metrics": performance_metrics,
+                            "market_conditions": self._analyze_pattern_market_conditions(
+                                pattern_instances
+                            ),
+                        }
+                    )
+
+                # 배치 처리 후 메모리 정리
+                del batch
 
             # 3. 전체 요약
             summary = self._generate_pattern_summary(detailed_analysis)
@@ -285,6 +319,8 @@ class PatternAnalysisService:
         finally:
             session.close()
 
+    @memory_monitor
+    @cache_technical_analysis(ttl=900)  # 15분 캐싱
     def find_successful_patterns(
         self,
         symbol: Optional[str] = None,
@@ -312,42 +348,52 @@ class PatternAnalysisService:
                 symbol=symbol, min_occurrences=min_occurrences
             )
 
-            # 2. 성공적인 패턴 필터링
+            # 2. 성공적인 패턴 필터링 (배치 처리)
             successful_patterns = []
-            for pattern_stat in all_patterns:
-                pattern_instances = pattern_repo.find_by_pattern_name(
-                    pattern_name=pattern_stat["pattern_name"], symbol=symbol, limit=100
-                )
+            batch_size = 5  # 메모리 효율성을 위한 배치 크기
 
-                # 성공률 계산 (간단한 버전)
-                success_count = 0
-                total_count = len(pattern_instances)
+            for i in range(0, len(all_patterns), batch_size):
+                batch = all_patterns[i : i + batch_size]
 
-                for pattern in pattern_instances:
-                    # 패턴 발생 후 가격 상승 여부 확인 (간단한 성공 기준)
-                    if self._is_pattern_successful(pattern):
-                        success_count += 1
-
-                success_rate = success_count / total_count if total_count > 0 else 0
-
-                if success_rate >= success_threshold:
-                    successful_patterns.append(
-                        {
-                            "pattern_name": pattern_stat["pattern_name"],
-                            "symbol": pattern_stat.get("symbol", "ALL"),
-                            "success_rate": success_rate,
-                            "total_occurrences": total_count,
-                            "successful_occurrences": success_count,
-                            "avg_duration_hours": (
-                                float(pattern_stat["avg_duration"])
-                                if pattern_stat["avg_duration"]
-                                else 0.0
-                            ),
-                            "last_occurrence": max(
-                                p.pattern_end for p in pattern_instances
-                            ).isoformat(),
-                        }
+                for pattern_stat in batch:
+                    pattern_instances = pattern_repo.find_by_pattern_name(
+                        pattern_name=pattern_stat["pattern_name"],
+                        symbol=symbol,
+                        limit=100,
                     )
+
+                    # 성공률 계산 (간단한 버전)
+                    success_count = 0
+                    total_count = len(pattern_instances)
+
+                    for pattern in pattern_instances:
+                        # 패턴 발생 후 가격 상승 여부 확인 (간단한 성공 기준)
+                        if self._is_pattern_successful(pattern):
+                            success_count += 1
+
+                    success_rate = success_count / total_count if total_count > 0 else 0
+
+                    if success_rate >= success_threshold:
+                        successful_patterns.append(
+                            {
+                                "pattern_name": pattern_stat["pattern_name"],
+                                "symbol": pattern_stat.get("symbol", "ALL"),
+                                "success_rate": success_rate,
+                                "total_occurrences": total_count,
+                                "successful_occurrences": success_count,
+                                "avg_duration_hours": (
+                                    float(pattern_stat["avg_duration"])
+                                    if pattern_stat["avg_duration"]
+                                    else 0.0
+                                ),
+                                "last_occurrence": max(
+                                    p.pattern_end for p in pattern_instances
+                                ).isoformat(),
+                            }
+                        )
+
+                # 배치 처리 후 메모리 정리
+                del batch
 
             # 3. 성공률 순으로 정렬
             successful_patterns.sort(key=lambda x: x["success_rate"], reverse=True)
@@ -377,6 +423,7 @@ class PatternAnalysisService:
         finally:
             session.close()
 
+    @memory_monitor
     def _calculate_pattern_metrics(
         self, pattern_instances: List[SignalPattern]
     ) -> Dict[str, Any]:
@@ -432,6 +479,7 @@ class PatternAnalysisService:
             return True
         return False
 
+    @memory_monitor
     def _analyze_pattern_market_conditions(
         self, pattern_instances: List[SignalPattern]
     ) -> Dict[str, Any]:
@@ -506,9 +554,111 @@ class PatternAnalysisService:
         }
 
     # =================================================================
+    # 최적화된 패턴 분석 메서드
+    # =================================================================
+
+    @memory_monitor
+    @cache_technical_analysis(ttl=1800)  # 30분 캐싱
+    def get_pattern_summary(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """
+        패턴 분석 요약 정보 조회 (최적화된 버전)
+
+        Args:
+            symbol: 심볼 필터
+
+        Returns:
+            패턴 요약 정보
+        """
+        session, pattern_repo, signal_repo = self._get_session_and_repositories()
+
+        try:
+            # 기본 통계 조회
+            pattern_stats = pattern_repo.get_pattern_performance_stats(
+                symbol=symbol, min_occurrences=1
+            )
+
+            if not pattern_stats:
+                return {"message": "분석할 패턴이 없습니다.", "symbol": symbol}
+
+            # 요약 정보 계산
+            total_patterns = len(pattern_stats)
+            total_occurrences = sum(stat["total_count"] for stat in pattern_stats)
+
+            # 가장 빈번한 패턴
+            most_frequent = max(pattern_stats, key=lambda x: x["total_count"])
+
+            # 평균 지속 시간
+            avg_durations = [
+                float(stat["avg_duration"])
+                for stat in pattern_stats
+                if stat["avg_duration"]
+            ]
+            overall_avg_duration = (
+                sum(avg_durations) / len(avg_durations) if avg_durations else 0.0
+            )
+
+            return {
+                "summary": {
+                    "total_patterns": total_patterns,
+                    "total_occurrences": total_occurrences,
+                    "overall_avg_duration_hours": overall_avg_duration,
+                    "most_frequent_pattern": {
+                        "name": most_frequent["pattern_name"],
+                        "occurrences": most_frequent["total_count"],
+                    },
+                },
+                "symbol": symbol,
+                "analysis_timestamp": datetime.utcnow().isoformat(),
+            }
+
+        except Exception as e:
+            print(f"❌ 패턴 요약 조회 실패: {e}")
+            return {"error": str(e)}
+        finally:
+            session.close()
+
+    @memory_monitor
+    def _optimize_pattern_data(
+        self, patterns: List[SignalPattern]
+    ) -> List[Dict[str, Any]]:
+        """
+        패턴 데이터 메모리 최적화
+
+        Args:
+            patterns: 패턴 리스트
+
+        Returns:
+            최적화된 패턴 데이터
+        """
+        optimized_patterns = []
+
+        for pattern in patterns:
+            # 필요한 데이터만 추출하여 메모리 사용량 최소화
+            optimized_pattern = {
+                "id": pattern.id,
+                "name": pattern.pattern_name,
+                "type": pattern.pattern_type,
+                "symbol": pattern.symbol,
+                "start": (
+                    pattern.pattern_start.isoformat() if pattern.pattern_start else None
+                ),
+                "end": pattern.pattern_end.isoformat() if pattern.pattern_end else None,
+                "duration_hours": (
+                    float(pattern.pattern_duration_hours)
+                    if pattern.pattern_duration_hours
+                    else 0.0
+                ),
+                "market_condition": pattern.market_condition,
+            }
+            optimized_patterns.append(optimized_pattern)
+
+        return optimized_patterns
+
+    # =================================================================
     # 테스트 및 디버깅 메서드
     # =================================================================
 
+    @memory_monitor
     def test_pattern_analysis(self, symbol: str = "^IXIC") -> Dict[str, Any]:
         """
         패턴 분석 테스트 (개발용)
@@ -615,6 +765,7 @@ class PatternAnalysisService:
         finally:
             session.close()
 
+    @memory_monitor
     def cleanup_test_patterns(self, symbol: str = "^IXIC") -> Dict[str, Any]:
         """
         테스트용 패턴 데이터 정리

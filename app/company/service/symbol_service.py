@@ -1,9 +1,9 @@
+import math
 from app.common.response.pagination import PaginatedResponse
 from app.company.infra.model.symbol.repository import symbol_repository
 from app.common.infra.database.config.database_config import SessionLocal
 from app.company.dto.symbol_response import SymbolResponse
 
-import math
 
 def get_paginated_symbols(page: int, size: int) -> PaginatedResponse[SymbolResponse]:
     session = SessionLocal()

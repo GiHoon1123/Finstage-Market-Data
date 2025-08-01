@@ -62,6 +62,12 @@ from app.common.infra.database.optimization.connection_pool_manager import (
     ConnectionPoolConfig,
 )
 
+# 메모리 관리 시스템 import
+from app.common.utils.memory_utils import (
+    start_memory_monitoring,
+    integrated_memory_manager,
+)
+
 app = FastAPI(
     title="Finstage Market Data API",
     version=settings.version,
@@ -119,11 +125,19 @@ app.include_router(
 
 # 비동기 API 라우터 등록
 from app.technical_analysis.web.route.async_api_router import router as async_api_router
+from app.technical_analysis.web.route.async_technical_router import (
+    router as async_technical_router,
+)
 
 app.include_router(
     async_api_router,
     prefix="/api/v2",
     tags=["Async API"],
+)
+
+app.include_router(
+    async_technical_router,
+    tags=["Async Technical Analysis V2"],
 )
 
 # 모니터링 라우터 등록
@@ -133,6 +147,21 @@ app.include_router(monitoring_router)
 from app.common.infra.database.routes import db_router
 
 app.include_router(db_router, prefix="/api")
+
+# 메모리 관리 라우터 등록
+from app.common.utils.memory_api_router import router as memory_router
+
+app.include_router(memory_router)
+
+# WebSocket 라우터 등록
+from app.common.web.websocket_router import router as websocket_router
+
+app.include_router(websocket_router)
+
+# 작업 큐 라우터 등록
+from app.common.web.task_queue_router import router as task_queue_router
+
+app.include_router(task_queue_router)
 
 # DB 테이블 생성
 Base.metadata.create_all(bind=engine)
@@ -197,6 +226,45 @@ async def startup_event():
     asyncio.create_task(pool_monitoring_task())
     logger.info("database_connection_pool_monitoring_started")
 
+    # 메모리 모니터링 시작 (5분 간격)
+    try:
+        start_memory_monitoring(interval_minutes=5)
+        logger.info("memory_monitoring_started", interval_minutes=5)
+    except Exception as e:
+        logger.error("memory_monitoring_start_failed", error=str(e))
+
+    # 실시간 가격 스트리밍 시작
+    try:
+        from app.market_price.service.realtime_price_streamer import (
+            realtime_price_streamer,
+        )
+
+        # 주요 심볼들만 모니터링 (리소스 절약)
+        major_symbols = [
+            "^IXIC",
+            "^GSPC",
+            "^DJI",
+            "AAPL",
+            "GOOGL",
+            "MSFT",
+            "TSLA",
+            "AMZN",
+        ]
+
+        asyncio.create_task(realtime_price_streamer.start_streaming(major_symbols))
+        logger.info("realtime_price_streaming_started", symbol_count=len(major_symbols))
+    except Exception as e:
+        logger.error("realtime_price_streaming_start_failed", error=str(e))
+
+    # 분산 작업 큐 시스템 시작
+    try:
+        from app.common.utils.task_queue import task_queue
+
+        asyncio.create_task(task_queue.start())
+        logger.info("task_queue_system_started", max_workers=task_queue.max_workers)
+    except Exception as e:
+        logger.error("task_queue_system_start_failed", error=str(e))
+
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -215,3 +283,34 @@ def shutdown_event():
     # 자동 알림 모니터링 종료
     auto_alert_monitor.stop_monitoring()
     logger.info("auto_alert_monitoring_stopped")
+
+    # 메모리 모니터링 종료
+    try:
+        import asyncio
+
+        asyncio.create_task(integrated_memory_manager.stop_monitoring())
+        logger.info("memory_monitoring_stopped")
+    except Exception as e:
+        logger.error("memory_monitoring_stop_failed", error=str(e))
+
+    # 실시간 가격 스트리밍 종료
+    try:
+        from app.market_price.service.realtime_price_streamer import (
+            realtime_price_streamer,
+        )
+        import asyncio
+
+        asyncio.create_task(realtime_price_streamer.stop_streaming())
+        logger.info("realtime_price_streaming_stopped")
+    except Exception as e:
+        logger.error("realtime_price_streaming_stop_failed", error=str(e))
+
+    # 분산 작업 큐 시스템 종료
+    try:
+        from app.common.utils.task_queue import task_queue
+        import asyncio
+
+        asyncio.create_task(task_queue.stop())
+        logger.info("task_queue_system_stopped")
+    except Exception as e:
+        logger.error("task_queue_system_stop_failed", error=str(e))

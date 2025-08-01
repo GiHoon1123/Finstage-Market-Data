@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-새로운 신호에 대해 자동으로 결과 추적을 시작하는 스크립트
-기존 스케줄러에 통합하거나 별도로 실행할 수 있습니다.
+자동 결과 추적 시작 스크립트
+
+이 스크립트는 새로운 신호들에 대해 자동으로 결과 추적을 시작합니다.
 """
 
 import os
 import sys
+import traceback
 
 # 환경 변수 설정
 os.environ["DB_HOST"] = "localhost"
@@ -88,8 +90,6 @@ def start_tracking_for_new_signals():
 
     except Exception as e:
         print(f"❌ 전체 오류 발생: {e}")
-        import traceback
-
         traceback.print_exc()
         return 0
 
