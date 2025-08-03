@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-08-02T21:43:07.261429",
+  "execution_time_seconds": 1.5001721382141113,
+  "total_tests": 6,
+  "passed_tests": 5,
+  "failed_tests": 1,
+  "success_rate": 83.33333333333334,
+  "test_results": {
+    "메모리 캐시 시스템": true,
+    "메모리 최적화 시스템": true,
+    "메모리 관리 유틸리티": true,
+    "비동기 기술적 분석": true,
+    "성능 측정 데코레이터": true,
+    "통합 시나리오": false
+  },
+  "passed_test_names": [
+    "메모리 캐시 시스템",
+    "메모리 최적화 시스템",
+    "메모리 관리 유틸리티",
+    "비동기 기술적 분석",
+    "성능 측정 데코레이터"
+  ],
+  "failed_test_names": [
+    "통합 시나리오"
+  ]
+}

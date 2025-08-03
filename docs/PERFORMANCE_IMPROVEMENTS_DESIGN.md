@@ -1,81 +1,81 @@
-# 성능 개선 시스템 실제 적용 설계
+# PERFORMANCE IMPROVEMENTS DESIGN
 
-## 개요
+## OVERVIEW
 
-기존 서비스들에 구축된 성능 개선 시스템들을 실제로 적용하여 측정 가능한 성능 향상을 달성하는 설계입니다.
+This document outlines the design for applying performance improvement systems to existing services to achieve measurable performance enhancements.
 
-## 아키텍처
+## ARCHITECTURE
 
-### 1. 적용 대상 서비스 식별
+### 1. TARGET SERVICES IDENTIFICATION
 
-#### 주요 서비스들
+#### Primary Services
 
-- **기술적 분석 서비스**: `technical_indicator_service.py`, `signal_generator_service.py`
-- **가격 데이터 서비스**: `price_monitor_service.py`, `price_snapshot_service.py`
-- **뉴스 크롤링 서비스**: `investing_news_crawler.py`, `yahoo_news_crawler.py`
-- **스케줄러 작업들**: `parallel_scheduler.py`의 모든 작업들
-- **API 엔드포인트들**: 모든 라우터의 무거운 엔드포인트들
+- **Technical Analysis Services**: `technical_indicator_service.py`, `signal_generator_service.py`
+- **Price Data Services**: `price_monitor_service.py`, `price_snapshot_service.py`
+- **News Crawling Services**: `investing_news_crawler.py`, `yahoo_news_crawler.py`
+- **Scheduler Tasks**: All tasks in `parallel_scheduler.py`
+- **API Endpoints**: Heavy endpoints in all routers
 
-### 2. 적용 전략
+### 2. APPLICATION STRATEGY
 
-#### Phase 1: 메모리 최적화 적용
+#### Phase 1: Memory Optimization Application
 
 ```python
-# 기존 코드
+# Before: No memory optimization
 def calculate_technical_indicators(self, df: pd.DataFrame):
-    # 메모리 최적화 없음
+    # No memory optimization
     return results
 
-# 개선된 코드
+# After: Optimized with decorators
 @cache_technical_analysis(ttl=600)
 @optimize_dataframe_memory()
 @memory_monitor(threshold_mb=200.0)
 def calculate_technical_indicators(self, df: pd.DataFrame):
-    # 자동 메모리 최적화 적용
+    # Automatic memory optimization applied
     return results
 ```
 
-#### Phase 2: 비동기 처리 적용
+#### Phase 2: Asynchronous Processing Application
 
 ```python
-# 기존 동기 처리
+# Before: Synchronous processing
 def process_multiple_symbols(symbols):
     results = []
     for symbol in symbols:
-        result = process_symbol(symbol)  # 순차 처리
+        result = process_symbol(symbol)  # Sequential processing
         results.append(result)
     return results
 
-# 개선된 비동기 처리
+# After: Asynchronous processing
 async def process_multiple_symbols_async(symbols):
     tasks = [process_symbol_async(symbol) for symbol in symbols]
-    results = await asyncio.gather(*tasks)  # 병렬 처리
+    results = await asyncio.gather(*tasks)  # Parallel processing
     return results
 ```
 
-#### Phase 3: 작업 큐 적용
+#### Phase 3: Task Queue Application
 
 ```python
-# 기존 블로킹 처리
+# Before: Blocking processing
 @router.post("/generate-report")
 def generate_report(symbols: List[str]):
-    report = heavy_report_generation(symbols)  # 30초 블로킹
+    report = heavy_report_generation(symbols)  # 30 second blocking
     return report
 
-# 개선된 백그라운드 처리
+# After: Background processing
 @router.post("/generate-report")
 async def generate_report(symbols: List[str]):
     task_id = await submit_background_task("generate_report", symbols)
     return {"task_id": task_id, "status": "processing"}
 ```
 
-## 컴포넌트 및 인터페이스
+## COMPONENTS AND INTERFACES
 
-### 1. 서비스 래퍼 클래스
+### 1. Service Wrapper Classes
 
 ```python
 class OptimizedTechnicalAnalysisService:
-    """기존 서비스를 최적화된 버전으로 래핑"""
+    """Wraps existing service with optimized version"""
 
     def __init__(self):
         self.original_service = TechnicalIndicatorService()
@@ -90,18 +90,18 @@ class OptimizedTechnicalAnalysisService:
         return await self.async_service.analyze_multiple_symbols_async(symbols)
 ```
 
-### 2. API 엔드포인트 개선
+### 2. API Endpoint Improvements
 
 ```python
-# 기존 엔드포인트 유지하면서 최적화된 버전 추가
+# Maintain existing endpoints while adding optimized versions
 @router.get("/technical-analysis/{symbol}")
 async def get_technical_analysis_optimized(symbol: str):
-    # 캐시 확인
+    # Check cache
     cached_result = await get_cached_analysis(symbol)
     if cached_result:
         return cached_result
 
-    # 백그라운드 작업으로 처리
+    # Process as background task
     task_id = await submit_background_task("analyze_symbol", symbol)
 
     return {
@@ -112,23 +112,23 @@ async def get_technical_analysis_optimized(symbol: str):
     }
 ```
 
-### 3. 실시간 업데이트 통합
+### 3. Real-time Update Integration
 
 ```python
-# 기존 스케줄러 작업에 실시간 브로드캐스트 추가
+# Add real-time broadcast to existing scheduler tasks
 @measure_execution_time
 @memory_monitor(threshold_mb=150.0)
 def run_realtime_analysis_job():
-    # 기존 분석 로직
+    # Existing analysis logic
     results = perform_analysis()
 
-    # 실시간 브로드캐스트 추가
+    # Add real-time broadcast
     asyncio.create_task(broadcast_analysis_results(results))
 ```
 
-## 데이터 모델
+## DATA MODELS
 
-### 1. 성능 메트릭 모델
+### 1. Performance Metrics Model
 
 ```python
 @dataclass
@@ -143,7 +143,7 @@ class PerformanceMetrics:
     timestamp: datetime
 ```
 
-### 2. 적용 상태 추적
+### 2. Optimization Status Tracking
 
 ```python
 @dataclass
@@ -155,13 +155,13 @@ class OptimizationStatus:
     applied_at: datetime
 ```
 
-## 에러 처리
+## ERROR HANDLING
 
-### 1. 점진적 적용 전략
+### 1. Gradual Application Strategy
 
 ```python
 class GradualOptimizationManager:
-    """점진적으로 최적화를 적용하는 매니저"""
+    """Manager for gradual optimization application"""
 
     def __init__(self):
         self.optimization_flags = {
@@ -172,55 +172,55 @@ class GradualOptimizationManager:
         }
 
     def enable_optimization(self, optimization_type: str):
-        """특정 최적화 활성화"""
+        """Enable specific optimization"""
         self.optimization_flags[optimization_type] = True
 
     def is_optimization_enabled(self, optimization_type: str) -> bool:
-        """최적화 활성화 여부 확인"""
+        """Check if optimization is enabled"""
         return self.optimization_flags.get(optimization_type, False)
 ```
 
-### 2. 롤백 메커니즘
+### 2. Rollback Mechanism
 
 ```python
 class OptimizationRollback:
-    """최적화 적용 실패 시 롤백"""
+    """Rollback optimization on failure"""
 
     def __init__(self):
         self.backup_functions = {}
 
     def backup_original_function(self, service_name: str, func_name: str, func):
-        """원본 함수 백업"""
+        """Backup original function"""
         key = f"{service_name}.{func_name}"
         self.backup_functions[key] = func
 
     def rollback_optimization(self, service_name: str, func_name: str):
-        """최적화 롤백"""
+        """Rollback optimization"""
         key = f"{service_name}.{func_name}"
         if key in self.backup_functions:
             return self.backup_functions[key]
 ```
 
-## 테스트 전략
+## TESTING STRATEGY
 
-### 1. 성능 비교 테스트
+### 1. Performance Comparison Testing
 
 ```python
 class PerformanceComparisonTest:
-    """최적화 전후 성능 비교"""
+    """Compare performance before and after optimization"""
 
     async def compare_performance(self, service_name: str, operation: str):
-        # 최적화 전 성능 측정
+        # Measure performance before optimization
         before_metrics = await self.measure_performance(
             service_name, operation, optimized=False
         )
 
-        # 최적화 후 성능 측정
+        # Measure performance after optimization
         after_metrics = await self.measure_performance(
             service_name, operation, optimized=True
         )
 
-        # 개선율 계산
+        # Calculate improvement
         improvement = self.calculate_improvement(before_metrics, after_metrics)
 
         return {
@@ -232,56 +232,56 @@ class PerformanceComparisonTest:
         }
 ```
 
-### 2. A/B 테스트 지원
+### 2. A/B Testing Support
 
 ```python
 class ABTestManager:
-    """A/B 테스트로 점진적 적용"""
+    """A/B testing for gradual application"""
 
     def __init__(self):
-        self.test_ratio = 0.1  # 10%의 요청만 최적화 버전 사용
+        self.test_ratio = 0.1  # 10% of requests use optimized version
 
     def should_use_optimized_version(self, request_id: str) -> bool:
-        """최적화 버전 사용 여부 결정"""
+        """Determine whether to use optimized version"""
         hash_value = hash(request_id) % 100
         return hash_value < (self.test_ratio * 100)
 ```
 
-## 모니터링 및 알림
+## MONITORING AND ALERTING
 
-### 1. 실시간 성능 모니터링
+### 1. Real-time Performance Monitoring
 
 ```python
 class PerformanceMonitor:
-    """실시간 성능 모니터링"""
+    """Real-time performance monitoring"""
 
     def __init__(self):
         self.metrics_collector = MetricsCollector()
         self.alert_manager = AlertManager()
 
     async def monitor_service_performance(self, service_name: str):
-        """서비스 성능 모니터링"""
+        """Monitor service performance"""
         while True:
             metrics = await self.collect_metrics(service_name)
 
-            # 성능 저하 감지
+            # Detect performance degradation
             if self.detect_performance_degradation(metrics):
                 await self.alert_manager.send_alert(
-                    f"성능 저하 감지: {service_name}",
+                    f"Performance degradation detected: {service_name}",
                     metrics
                 )
 
-            await asyncio.sleep(60)  # 1분마다 체크
+            await asyncio.sleep(60)  # Check every minute
 ```
 
-### 2. 자동 최적화 적용
+### 2. Automatic Optimization Application
 
 ```python
 class AutoOptimizationManager:
-    """자동 최적화 적용 매니저"""
+    """Automatic optimization application manager"""
 
     async def auto_apply_optimizations(self):
-        """성능 지표 기반 자동 최적화 적용"""
+        """Apply optimizations based on performance metrics"""
         services = await self.get_services_needing_optimization()
 
         for service in services:
@@ -295,4 +295,68 @@ class AutoOptimizationManager:
                 await self.apply_background_processing(service)
 ```
 
-이 설계를 통해 기존 서비스들에 점진적으로 성능 개선을 적용하고, 실제 성능 향상을 측정하며, 문제 발생 시 롤백할 수 있는 안전한 시스템을 구축할 수 있습니다.
+## IMPLEMENTATION PHASES
+
+### Phase 1: Foundation (Weeks 1-2)
+
+- Memory management system implementation
+- Basic caching layer setup
+- Performance monitoring infrastructure
+
+### Phase 2: Asynchronous Processing (Weeks 3-4)
+
+- Async service implementations
+- API endpoint optimizations
+- Concurrency control mechanisms
+
+### Phase 3: Real-time Systems (Weeks 5-6)
+
+- WebSocket infrastructure
+- Real-time data streaming
+- Subscription management
+
+### Phase 4: Task Queue System (Weeks 7-8)
+
+- Background task processing
+- Priority-based scheduling
+- Task status tracking
+
+### Phase 5: Integration and Testing (Weeks 9-10)
+
+- System integration testing
+- Performance benchmarking
+- A/B testing implementation
+
+### Phase 6: Deployment and Monitoring (Weeks 11-12)
+
+- Production deployment
+- Performance monitoring
+- Optimization fine-tuning
+
+## PERFORMANCE TARGETS
+
+### Memory Optimization
+
+- DataFrame memory usage: 35% reduction
+- System memory usage: 29% reduction
+- Garbage collection frequency: 75% reduction
+
+### Asynchronous Processing
+
+- API response time: 70% improvement
+- Concurrent request handling: 300% increase
+- Resource utilization: 40% improvement
+
+### Real-time Streaming
+
+- Data latency: 95% reduction (30-60s → 1-2s)
+- Server requests: 99.7% reduction
+- Network usage: 92% reduction
+
+### Task Queue System
+
+- Background task processing: 100+ tasks/minute
+- Task failure rate: < 1%
+- Average task completion time: < 30 seconds
+
+This design provides a comprehensive approach to applying performance improvements to existing services while maintaining system stability and enabling gradual rollout with proper monitoring and rollback capabilities.

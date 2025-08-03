@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-08-02T22:51:11.304463",
+  "execution_time_seconds": 10.391680002212524,
+  "total_tests": 7,
+  "passed_tests": 6,
+  "failed_tests": 1,
+  "success_rate": 85.71428571428571,
+  "test_results": {
+    "기술적 분석 계산": true,
+    "메모리 최적화 기능": true,
+    "비동기 처리 기능": true,
+    "캐시 시스템": true,
+    "성능 모니터링": true,
+    "WebSocket 관리": true,
+    "작업 큐 기본 기능": false
+  },
+  "passed_test_names": [
+    "기술적 분석 계산",
+    "메모리 최적화 기능",
+    "비동기 처리 기능",
+    "캐시 시스템",
+    "성능 모니터링",
+    "WebSocket 관리"
+  ],
+  "failed_test_names": [
+    "작업 큐 기본 기능"
+  ]
+}

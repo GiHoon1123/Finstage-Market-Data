@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-08-02T21:47:07.062345",
+  "execution_time_seconds": 0.6682019233703613,
+  "total_tests": 7,
+  "passed_tests": 2,
+  "failed_tests": 5,
+  "success_rate": 28.57142857142857,
+  "test_results": {
+    "기술적 분석 서비스": false,
+    "가격 데이터 서비스": false,
+    "뉴스 크롤링 서비스": false,
+    "스케줄러 시스템": true,
+    "데이터베이스 연결": true,
+    "API 라우터": false,
+    "백그라운드 작업": false
+  },
+  "passed_test_names": [
+    "스케줄러 시스템",
+    "데이터베이스 연결"
+  ],
+  "failed_test_names": [
+    "기술적 분석 서비스",
+    "가격 데이터 서비스",
+    "뉴스 크롤링 서비스",
+    "API 라우터",
+    "백그라운드 작업"
+  ]
+}

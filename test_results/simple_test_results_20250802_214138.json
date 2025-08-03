@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-08-02T21:41:38.237475",
+  "execution_time_seconds": 15.357539176940918,
+  "total_tests": 7,
+  "passed_tests": 2,
+  "failed_tests": 5,
+  "success_rate": 28.57142857142857,
+  "test_results": {
+    "메모리 캐시 시스템": true,
+    "메모리 최적화 시스템": true,
+    "작업 큐 시스템": false,
+    "성능 메트릭 시스템": false,
+    "WebSocket 매니저": false,
+    "최적화 매니저": false,
+    "비동기 서비스": false
+  },
+  "passed_test_names": [
+    "메모리 캐시 시스템",
+    "메모리 최적화 시스템"
+  ],
+  "failed_test_names": [
+    "작업 큐 시스템",
+    "성능 메트릭 시스템",
+    "WebSocket 매니저",
+    "최적화 매니저",
+    "비동기 서비스"
+  ]
+}

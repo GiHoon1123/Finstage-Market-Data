@@ -472,7 +472,7 @@ async def collect_historical_data_background(
         }
 
 
-@task(priority=TaskPriority.MEDIUM, max_retries=1, timeout=900.0)
+@task(priority=TaskPriority.NORMAL, max_retries=1, timeout=900.0)
 @memory_monitor
 async def collect_incremental_data_background(symbols: List[str]) -> Dict[str, Any]:
     """
