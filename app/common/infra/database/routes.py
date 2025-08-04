@@ -10,6 +10,7 @@ import asyncio
 
 from app.common.infra.database.config.database_config import engine
 from app.common.infra.database.monitoring.query_monitor import query_monitor
+from app.common.infra.database.services.slow_query_service import slow_query_service
 from app.common.infra.database.optimization.index_optimizer import (
     IndexOptimizer,
     analyze_database_indexes,
@@ -54,19 +55,41 @@ async def get_query_statistics(
 
 @db_router.get("/slow-queries", summary="슬로우 쿼리 조회")
 async def get_slow_queries(
-    hours: int = Query(24, description="조회할 시간 범위 (시간)", ge=1, le=168)
+    hours: int = Query(24, description="조회할 시간 범위 (시간)", ge=1, le=168),
+    limit: int = Query(100, description="조회할 최대 개수", ge=1, le=1000),
+    min_duration: Optional[float] = Query(
+        None, description="최소 실행 시간 (초)", ge=0
+    ),
+    operation_type: Optional[str] = Query(
+        None, description="쿼리 타입 (SELECT, INSERT, etc.)"
+    ),
+    table_name: Optional[str] = Query(None, description="테이블명 필터"),
 ) -> Dict[str, Any]:
     """
     지정된 시간 범위 내의 슬로우 쿼리를 조회합니다.
+    데이터베이스에서 조회하며, 다양한 필터 옵션을 제공합니다.
     """
     try:
-        slow_queries = query_monitor.get_slow_queries(hours)
+        # 데이터베이스에서 슬로우 쿼리 조회
+        slow_queries = slow_query_service.get_slow_queries(
+            hours=hours,
+            limit=limit,
+            min_duration=min_duration,
+            operation_type=operation_type,
+            table_name=table_name,
+        )
 
         return {
             "slow_queries": slow_queries,
             "total_count": len(slow_queries),
             "time_range_hours": hours,
             "threshold_seconds": query_monitor.slow_query_threshold,
+            "filters": {
+                "min_duration": min_duration,
+                "operation_type": operation_type,
+                "table_name": table_name,
+                "limit": limit,
+            },
         }
 
     except Exception as e:
@@ -345,3 +368,94 @@ def _calculate_overall_health(
         return "WARNING"
     else:
         return "CRITICAL"
+
+
+@db_router.get("/slow-queries/statistics", summary="슬로우 쿼리 통계")
+async def get_slow_query_statistics(
+    hours: int = Query(24, description="조회할 시간 범위 (시간)", ge=1, le=168)
+) -> Dict[str, Any]:
+    """
+    슬로우 쿼리의 상세 통계를 조회합니다.
+    작업 타입별, 테이블별, 시간대별 분포를 제공합니다.
+    """
+    try:
+        statistics = slow_query_service.get_slow_query_statistics(hours)
+
+        return {
+            "statistics": statistics,
+            "time_range_hours": hours,
+            "generated_at": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error("slow_query_statistics_failed", error=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve slow query statistics"
+        )
+
+
+@db_router.get("/slow-queries/patterns", summary="슬로우 쿼리 패턴 분석")
+async def get_slow_query_patterns(
+    hours: int = Query(24, description="조회할 시간 범위 (시간)", ge=1, le=168)
+) -> Dict[str, Any]:
+    """
+    슬로우 쿼리의 패턴을 분석합니다.
+    자주 발생하는 패턴과 가장 느린 패턴을 제공합니다.
+    """
+    try:
+        patterns = slow_query_service.get_query_pattern_analysis(hours)
+
+        return {
+            "patterns": patterns,
+            "time_range_hours": hours,
+            "generated_at": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error("slow_query_patterns_failed", error=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to analyze slow query patterns"
+        )
+
+
+@db_router.post("/slow-queries/cleanup", summary="오래된 슬로우 쿼리 로그 정리")
+async def cleanup_slow_query_logs(
+    days: int = Query(30, description="보관할 일수", ge=1, le=365)
+) -> Dict[str, Any]:
+    """
+    지정된 일수보다 오래된 슬로우 쿼리 로그를 삭제합니다.
+    """
+    try:
+        deleted_count = await slow_query_service.cleanup_old_logs(days)
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "retention_days": days,
+            "cleaned_at": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error("slow_query_cleanup_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to cleanup slow query logs")
+
+
+@db_router.post("/slow-queries/flush", summary="대기 중인 슬로우 쿼리 강제 저장")
+async def flush_pending_slow_queries() -> Dict[str, Any]:
+    """
+    배치 저장을 위해 대기 중인 슬로우 쿼리들을 즉시 데이터베이스에 저장합니다.
+    """
+    try:
+        await slow_query_service.force_flush()
+
+        return {
+            "success": True,
+            "message": "Pending slow queries have been flushed to database",
+            "flushed_at": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error("slow_query_flush_failed", error=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to flush pending slow queries"
+        )

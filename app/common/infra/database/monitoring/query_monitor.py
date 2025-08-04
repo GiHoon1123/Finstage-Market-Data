@@ -19,6 +19,7 @@ from sqlalchemy.pool import Pool
 from app.common.utils.logging_config import get_logger
 from app.common.monitoring.metrics import metrics_collector
 from app.common.monitoring.alerts import send_warning_alert, send_critical_alert
+from app.common.infra.database.services.slow_query_service import slow_query_service
 
 logger = get_logger(__name__)
 
@@ -290,18 +291,39 @@ class QueryMonitor:
     ):
         """슬로우 쿼리 처리"""
         query_hash = self._generate_query_hash(query)
+        query_template = self._normalize_query(query)
+        table_names = self._extract_table_names(query)
+        operation_type = self._extract_operation(query)
+        execution_timestamp = datetime.now()
 
-        # 슬로우 쿼리 기록
+        # 메모리에 슬로우 쿼리 기록 (기존 방식 유지)
         slow_query = SlowQuery(
             query_hash=query_hash,
             query=query[:1000],  # 쿼리 길이 제한
             duration=duration,
-            timestamp=datetime.now(),
+            timestamp=execution_timestamp,
             parameters=parameters,
             affected_rows=affected_rows,
         )
 
         self.slow_queries.append(slow_query)
+
+        # 데이터베이스에 슬로우 쿼리 저장 (새로운 기능)
+        try:
+            await slow_query_service.save_slow_query(
+                query_hash=query_hash,
+                query_template=query_template,
+                original_query=query,
+                duration=duration,
+                affected_rows=affected_rows,
+                table_names=table_names,
+                operation_type=operation_type,
+                execution_timestamp=execution_timestamp,
+            )
+        except Exception as e:
+            logger.error(
+                "slow_query_db_save_failed", error=str(e), query_hash=query_hash
+            )
 
         # 로그 기록
         logger.warning(
@@ -310,6 +332,7 @@ class QueryMonitor:
             duration=duration,
             affected_rows=affected_rows,
             query=query[:200],
+            saved_to_db=True,
         )
 
         # 매우 느린 쿼리는 즉시 알림
@@ -348,13 +371,20 @@ class QueryMonitor:
             return [asdict(metric) for metric in sorted_metrics[:limit]]
 
     def get_slow_queries(self, hours: int = 24) -> List[Dict[str, Any]]:
-        """슬로우 쿼리 조회"""
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        """슬로우 쿼리 조회 (데이터베이스 우선, 메모리 백업)"""
+        try:
+            # 먼저 데이터베이스에서 조회 시도
+            db_slow_queries = slow_query_service.get_slow_queries(hours=hours)
+            if db_slow_queries:
+                return db_slow_queries
+        except Exception as e:
+            logger.error("db_slow_queries_retrieval_failed", error=str(e))
 
+        # 데이터베이스 조회 실패 시 메모리에서 조회 (백업)
+        cutoff_time = datetime.now() - timedelta(hours=hours)
         recent_slow_queries = [
             asdict(sq) for sq in self.slow_queries if sq.timestamp >= cutoff_time
         ]
-
         return sorted(recent_slow_queries, key=lambda x: x["duration"], reverse=True)
 
     def get_connection_metrics(self) -> Dict[str, Any]:

@@ -13,6 +13,7 @@ env_file = f".env.{mode}"
 load_dotenv(dotenv_path=env_file)
 
 from app.common.infra.database.config.database_config import Base, engine
+from app.common.infra.database.models.slow_query_log import SlowQueryLog
 from app.common.utils.logging_config import setup_logging, get_logger
 from app.common.config.settings import validate_settings, settings
 
@@ -66,6 +67,7 @@ from app.common.monitoring.alerts import auto_alert_monitor
 
 # 데이터베이스 최적화 시스템 imports
 from app.common.infra.database.monitoring.query_monitor import query_monitor
+from app.common.infra.database.services.slow_query_service import slow_query_service
 from app.common.infra.database.optimization.connection_pool_manager import (
     initialize_pool_manager,
     monitor_connection_pool,
@@ -170,7 +172,7 @@ app.include_router(websocket_router)
 # 작업 큐 라우터 등록
 app.include_router(task_queue_router)
 
-# DB 테이블 생성
+# DB 테이블 생성 (슬로우 쿼리 로그 테이블 포함)
 Base.metadata.create_all(bind=engine)
 
 
@@ -261,6 +263,21 @@ async def startup_event():
     except Exception as e:
         logger.error("task_queue_system_start_failed", error=str(e))
 
+    # 슬로우 쿼리 로그 정리 스케줄링 (매일 자정에 30일 이상 된 로그 삭제)
+    async def cleanup_slow_query_logs():
+        while True:
+            try:
+                # 24시간마다 실행
+                await asyncio.sleep(24 * 60 * 60)
+                deleted_count = await slow_query_service.cleanup_old_logs(days=30)
+                logger.info("slow_query_logs_auto_cleanup", deleted_count=deleted_count)
+            except Exception as e:
+                logger.error("slow_query_logs_auto_cleanup_failed", error=str(e))
+                await asyncio.sleep(60 * 60)  # 에러 시 1시간 후 재시도
+
+    asyncio.create_task(cleanup_slow_query_logs())
+    logger.info("slow_query_logs_auto_cleanup_scheduled")
+
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -300,3 +317,10 @@ def shutdown_event():
         logger.info("task_queue_system_stopped")
     except Exception as e:
         logger.error("task_queue_system_stop_failed", error=str(e))
+
+    # 대기 중인 슬로우 쿼리 강제 저장
+    try:
+        asyncio.create_task(slow_query_service.force_flush())
+        logger.info("slow_query_service_flushed_on_shutdown")
+    except Exception as e:
+        logger.error("slow_query_service_flush_failed", error=str(e))
