@@ -471,6 +471,11 @@ class CacheMetrics:
 cache_metrics = CacheMetrics()
 
 
+def get_cache_stats() -> Dict[str, Any]:
+    """캐시 통계 조회 (간단 버전)"""
+    return cache_manager.get_all_stats()
+
+
 def get_cache_health_report() -> Dict[str, Any]:
     """캐시 시스템 건강 상태 보고서"""
     all_stats = cache_manager.get_all_stats()

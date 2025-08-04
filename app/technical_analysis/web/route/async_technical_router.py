@@ -4,10 +4,11 @@
 기존 동기 API를 비동기로 변환하여 성능을 향상시킨 엔드포인트들
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+import asyncio
 import pandas as pd
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 
 from app.technical_analysis.service.async_technical_indicator_service import (
     AsyncTechnicalIndicatorService,
@@ -16,7 +17,7 @@ from app.market_price.service.async_price_service import AsyncPriceService
 from app.common.utils.async_executor import async_timed
 from app.common.utils.logging_config import get_logger
 from app.common.constants.symbol_names import SYMBOL_PRICE_MAP
-from app.common.utils.memory_cache import cache_result
+from app.common.utils.memory_cache import cache_result, get_cache_stats
 from app.common.utils.memory_optimizer import memory_monitor
 from app.common.utils.task_queue import TaskQueue
 from app.common.services.background_tasks import run_technical_analysis_batch_background

@@ -3,14 +3,15 @@
 # ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8081
 
 import os
+import asyncio
 from dotenv import load_dotenv
+from fastapi import FastAPI
 
 # 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
 mode = os.getenv("ENV_MODE", "dev")
 env_file = f".env.{mode}"
 load_dotenv(dotenv_path=env_file)
 
-from fastapi import FastAPI
 from app.common.infra.database.config.database_config import Base, engine
 from app.common.utils.logging_config import setup_logging, get_logger
 from app.common.config.settings import validate_settings, settings
@@ -20,6 +21,7 @@ validate_settings()
 setup_logging()
 logger = get_logger("main")
 
+# 라우터 imports
 from app.company.web.route.symbol_router import router as symbol_router
 from app.company.web.route.financial_router import router as financial_router
 from app.news_crawler.web.route.news_test_router import router as news_test_router
@@ -40,32 +42,52 @@ from app.technical_analysis.web.route.outcome_analysis_router import (
 from app.technical_analysis.web.route.daily_report_router import (
     router as daily_report_router,
 )
+from app.technical_analysis.web.route.test_router import router as test_router
+from app.technical_analysis.web.route.async_api_router import router as async_api_router
+from app.technical_analysis.web.route.async_technical_router import (
+    router as async_technical_router,
+)
 
+# 스케줄러 imports
 from app.scheduler.scheduler_runner import start_scheduler
+from app.scheduler.parallel_scheduler import start_parallel_scheduler
 
-# 성능 모니터링 관련 import (함수 내부에서 사용)
+# 성능 모니터링 관련 imports
 try:
-    from app.common.utils.performance_monitor import stop_monitoring
+    from app.common.utils.performance_monitor import stop_monitoring, start_monitoring
 except ImportError:
     stop_monitoring = None
+    start_monitoring = None
 
-# 모니터링 시스템 import
+# 모니터링 시스템 imports
 from app.common.monitoring.routes import monitoring_router, metrics_middleware
 from app.common.monitoring.metrics import start_metrics_server, stop_metrics_server
 from app.common.monitoring.alerts import auto_alert_monitor
 
-# 데이터베이스 최적화 시스템 import
+# 데이터베이스 최적화 시스템 imports
 from app.common.infra.database.monitoring.query_monitor import query_monitor
 from app.common.infra.database.optimization.connection_pool_manager import (
     initialize_pool_manager,
     monitor_connection_pool,
     ConnectionPoolConfig,
 )
+from app.common.infra.database.routes import db_router
 
-# 메모리 관리 시스템 import
+# 메모리 관리 시스템 imports
 from app.common.utils.memory_utils import (
     start_memory_monitoring,
     integrated_memory_manager,
+)
+from app.common.utils.memory_api_router import router as memory_router
+
+# WebSocket 및 작업 큐 imports
+from app.common.web.websocket_router import router as websocket_router
+from app.common.web.task_queue_router import router as task_queue_router
+from app.common.utils.task_queue import task_queue
+
+# 실시간 가격 스트리밍 imports
+from app.market_price.service.realtime_price_streamer import (
+    realtime_price_streamer,
 )
 
 app = FastAPI(
@@ -115,8 +137,6 @@ app.include_router(
 )
 
 # 테스트 라우터 등록
-from app.technical_analysis.web.route.test_router import router as test_router
-
 app.include_router(
     test_router,
     prefix="/api/test",
@@ -124,11 +144,6 @@ app.include_router(
 )
 
 # 비동기 API 라우터 등록
-from app.technical_analysis.web.route.async_api_router import router as async_api_router
-from app.technical_analysis.web.route.async_technical_router import (
-    router as async_technical_router,
-)
-
 app.include_router(
     async_api_router,
     prefix="/api/v2",
@@ -144,23 +159,15 @@ app.include_router(
 app.include_router(monitoring_router)
 
 # 데이터베이스 최적화 라우터 등록
-from app.common.infra.database.routes import db_router
-
 app.include_router(db_router, prefix="/api")
 
 # 메모리 관리 라우터 등록
-from app.common.utils.memory_api_router import router as memory_router
-
 app.include_router(memory_router)
 
 # WebSocket 라우터 등록
-from app.common.web.websocket_router import router as websocket_router
-
 app.include_router(websocket_router)
 
 # 작업 큐 라우터 등록
-from app.common.web.task_queue_router import router as task_queue_router
-
 app.include_router(task_queue_router)
 
 # DB 테이블 생성
@@ -190,15 +197,12 @@ async def startup_event():
         logger.error("database_optimization_setup_failed", error=str(e))
 
     # 병렬 처리 스케줄러 사용
-    from app.scheduler.parallel_scheduler import start_parallel_scheduler
-
     start_parallel_scheduler()  # 서버 시작 시 병렬 스케줄러 동작 시작
 
     # 성능 모니터링 시스템 시작
-    from app.common.utils.performance_monitor import start_monitoring
-
-    start_monitoring()
-    logger.info("performance_monitoring_started")
+    if start_monitoring:
+        start_monitoring()
+        logger.info("performance_monitoring_started")
 
     # Prometheus 메트릭 서버 시작
     try:
@@ -208,8 +212,6 @@ async def startup_event():
         logger.error("prometheus_metrics_server_start_failed", error=str(e))
 
     # 자동 알림 모니터링 시작
-    import asyncio
-
     asyncio.create_task(auto_alert_monitor.start_monitoring())
     logger.info("auto_alert_monitoring_started")
 
@@ -235,10 +237,6 @@ async def startup_event():
 
     # 실시간 가격 스트리밍 시작
     try:
-        from app.market_price.service.realtime_price_streamer import (
-            realtime_price_streamer,
-        )
-
         # 주요 심볼들만 모니터링 (리소스 절약)
         major_symbols = [
             "^IXIC",
@@ -258,8 +256,6 @@ async def startup_event():
 
     # 분산 작업 큐 시스템 시작
     try:
-        from app.common.utils.task_queue import task_queue
-
         asyncio.create_task(task_queue.start())
         logger.info("task_queue_system_started", max_workers=task_queue.max_workers)
     except Exception as e:
@@ -286,8 +282,6 @@ def shutdown_event():
 
     # 메모리 모니터링 종료
     try:
-        import asyncio
-
         asyncio.create_task(integrated_memory_manager.stop_monitoring())
         logger.info("memory_monitoring_stopped")
     except Exception as e:
@@ -295,11 +289,6 @@ def shutdown_event():
 
     # 실시간 가격 스트리밍 종료
     try:
-        from app.market_price.service.realtime_price_streamer import (
-            realtime_price_streamer,
-        )
-        import asyncio
-
         asyncio.create_task(realtime_price_streamer.stop_streaming())
         logger.info("realtime_price_streaming_stopped")
     except Exception as e:
@@ -307,9 +296,6 @@ def shutdown_event():
 
     # 분산 작업 큐 시스템 종료
     try:
-        from app.common.utils.task_queue import task_queue
-        import asyncio
-
         asyncio.create_task(task_queue.stop())
         logger.info("task_queue_system_stopped")
     except Exception as e:

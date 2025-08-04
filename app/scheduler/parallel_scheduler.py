@@ -2,17 +2,22 @@
 병렬 처리 기능이 추가된 스케줄러 러너
 """
 
+import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
+
+# 유틸리티 imports
 from app.common.utils.parallel_executor import ParallelExecutor, measure_execution_time
 from app.common.utils.logging_config import get_logger
+from app.common.utils.memory_optimizer import memory_monitor, auto_memory_optimization
+from app.common.utils.memory_utils import optimize_memory
+from app.common.utils.db_session_manager import session_scope
+from app.common.utils.task_queue import TaskQueue
+
+# 예외 처리 imports
 from app.common.exceptions.handlers import handle_scheduler_errors, safe_execute
 from app.common.exceptions.base import SchedulerError, ErrorCode
 
-# 메모리 최적화 임포트
-from app.common.utils.memory_optimizer import memory_monitor, auto_memory_optimization
-from app.common.utils.memory_utils import optimize_memory
-
-logger = get_logger("parallel_scheduler")
+# 상수 imports
 from app.common.constants.symbol_names import (
     INDEX_SYMBOLS,
     FUTURES_SYMBOLS,
@@ -23,6 +28,33 @@ from app.common.constants.rss_feeds import (
     INVESTING_ECONOMIC_SYMBOLS,
     INVESTING_MARKET_SYMBOLS,
 )
+
+# 서비스 imports
+from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
+from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
+from app.market_price.service.price_high_record_service import PriceHighRecordService
+from app.market_price.service.price_snapshot_service import PriceSnapshotService
+from app.market_price.service.price_monitor_service import PriceMonitorService
+from app.technical_analysis.service.async_technical_indicator_service import (
+    AsyncTechnicalIndicatorService,
+)
+from app.market_price.service.async_price_service import AsyncPriceService
+from app.technical_analysis.service.daily_comprehensive_report_service import (
+    DailyComprehensiveReportService,
+)
+from app.common.services.background_tasks import (
+    run_daily_comprehensive_report_background,
+    run_historical_data_collection_background,
+    run_technical_analysis_batch_background,
+)
+from app.scheduler.scheduler_runner import (
+    run_daily_index_analysis,
+    run_outcome_tracking_update,
+    initialize_recent_signals_tracking,
+    run_pattern_discovery,
+)
+
+logger = get_logger("parallel_scheduler")
 
 
 # 병렬 실행기 인스턴스 생성 (max_workers 감소로 DB 연결 부하 감소)
@@ -35,9 +67,6 @@ executor = ParallelExecutor(max_workers=2)  # 3 → 2로 더 감소
 @memory_monitor()
 def run_integrated_news_crawling_parallel():
     """통합 뉴스 크롤링 (경제 뉴스 + 지수 뉴스)"""
-    from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
-    from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
-
     logger.info(
         "integrated_news_crawling_started",
         sources=["investing_economic", "yahoo_index"],
@@ -98,8 +127,6 @@ def run_integrated_news_crawling_parallel():
 @memory_monitor()
 def run_investing_market_news_parallel():
     """Investing 시장 뉴스 크롤링 (병렬)"""
-    from app.news_crawler.service.investing_news_crawler import InvestingNewsCrawler
-
     logger.info("news_crawling_started", source="investing_market")
 
     def process_symbol(symbol):
@@ -128,8 +155,6 @@ def run_investing_market_news_parallel():
 @memory_monitor()
 def run_yahoo_futures_news_parallel():
     """Yahoo 선물 뉴스 크롤링 (병렬)"""
-    from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
-
     logger.info("news_crawling_started", source="yahoo_futures")
 
     def process_symbol(symbol):
@@ -163,8 +188,6 @@ def run_yahoo_futures_news_parallel():
 @memory_monitor()
 def run_yahoo_stock_news_parallel():
     """Yahoo 종목 뉴스 크롤링 (병렬)"""
-    from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
-
     logger.info("news_crawling_started", source="yahoo_stocks")
 
     def process_symbol(symbol):
@@ -193,10 +216,6 @@ def run_yahoo_stock_news_parallel():
 @memory_monitor()
 def run_high_price_update_job_parallel():
     """상장 후 최고가 갱신 (병렬)"""
-    from app.market_price.service.price_high_record_service import (
-        PriceHighRecordService,
-    )
-
     logger.info("high_price_update_started")
 
     def update_high_price(symbol):
@@ -235,8 +254,6 @@ def run_high_price_update_job_parallel():
 @memory_monitor()
 def run_previous_close_snapshot_job_parallel():
     """전일 종가 저장 (병렬)"""
-    from app.market_price.service.price_snapshot_service import PriceSnapshotService
-
     logger.info("previous_close_snapshot_started")
 
     def save_previous_close(symbol):
@@ -263,8 +280,6 @@ def run_previous_close_snapshot_job_parallel():
 @memory_monitor()
 def run_previous_high_snapshot_job_parallel():
     """전일 고점 저장 (병렬)"""
-    from app.market_price.service.price_snapshot_service import PriceSnapshotService
-
     logger.info("previous_high_snapshot_started")
 
     def save_previous_high(symbol):
@@ -291,8 +306,6 @@ def run_previous_high_snapshot_job_parallel():
 @memory_monitor()
 def run_previous_low_snapshot_job_parallel():
     """전일 저점 저장 (병렬)"""
-    from app.market_price.service.price_snapshot_service import PriceSnapshotService
-
     logger.info("previous_low_snapshot_started")
 
     def save_previous_low(symbol):
@@ -319,9 +332,6 @@ def run_previous_low_snapshot_job_parallel():
 @memory_monitor(threshold_mb=150.0)
 def run_realtime_price_monitor_job_parallel():
     """실시간 가격 모니터링 (병렬)"""
-    from app.market_price.service.price_monitor_service import PriceMonitorService
-    from app.common.utils.db_session_manager import session_scope
-
     logger.info("realtime_price_monitoring_started")
 
     def check_price(symbol):
@@ -396,13 +406,6 @@ def start_parallel_scheduler():
     # scheduler.add_job(run_previous_low_snapshot_job_parallel, ...)    # 제거
 
     # 무거운 작업들을 백그라운드 작업 큐로 이전
-    from app.common.utils.task_queue import TaskQueue
-    from app.common.services.background_tasks import (
-        run_daily_comprehensive_report_background,
-        run_historical_data_collection_background,
-        run_technical_analysis_batch_background,
-    )
-
     # 작업 큐에 무거운 작업들 스케줄링
     task_queue = TaskQueue()
 
@@ -443,12 +446,6 @@ def start_parallel_scheduler():
     )
 
     # 기존 기술적 지표 모니터링 작업들은 그대로 유지
-    from app.scheduler.scheduler_runner import (
-        run_daily_index_analysis,
-        run_outcome_tracking_update,
-        initialize_recent_signals_tracking,
-        run_pattern_discovery,
-    )
 
     # 일일 지수 분석은 scheduler_runner.py에서 오전 7시에만 실행
     # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)  # 제거됨
@@ -526,11 +523,6 @@ def run_async_technical_analysis_job():
     logger.info("async_technical_analysis_job_started")
 
     try:
-        import asyncio
-        from app.technical_analysis.service.async_technical_indicator_service import (
-            AsyncTechnicalIndicatorService,
-        )
-        from app.market_price.service.async_price_service import AsyncPriceService
 
         async def run_async_analysis():
             # 주요 심볼들 선택 (전체 대신 주요 지수만)
@@ -635,10 +627,6 @@ def run_daily_comprehensive_report():
     - 투자 인사이트 제공
     """
     logger.info("daily_comprehensive_report_started")
-
-    from app.technical_analysis.service.daily_comprehensive_report_service import (
-        DailyComprehensiveReportService,
-    )
 
     service = DailyComprehensiveReportService()
     result = service.generate_daily_report()

@@ -17,6 +17,7 @@ Phase 3의 핵심 기능으로, 머신러닝과 통계 기법을 활용한 고�
 - 통계적 유의성 검정 - 패턴의 신뢰도 검증
 """
 
+import random
 import numpy as np
 import pandas as pd
 from typing import List, Optional, Dict, Any, Tuple

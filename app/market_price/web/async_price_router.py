@@ -14,7 +14,7 @@ from app.market_price.service.price_snapshot_service import PriceSnapshotService
 from app.market_price.service.price_high_record_service import PriceHighRecordService
 from app.common.utils.async_executor import async_timed
 from app.common.utils.logging_config import get_logger
-from app.common.utils.memory_cache import cache_result
+from app.common.utils.memory_cache import cache_result, get_cache_stats
 from app.common.utils.memory_optimizer import memory_monitor
 from app.common.utils.task_queue import TaskQueue
 from app.common.services.background_tasks import (

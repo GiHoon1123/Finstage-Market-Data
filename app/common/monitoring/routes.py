@@ -4,10 +4,16 @@
 헬스체크, 메트릭, 상태 확인 등의 엔드포인트를 제공합니다.
 """
 
+import re
+import sys
+import time
+import platform
+import psutil
+from datetime import datetime
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
-import time
-from typing import Dict, Any
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.common.monitoring.health import (
     get_health_status,

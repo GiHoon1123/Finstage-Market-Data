@@ -6,6 +6,7 @@
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from sqlalchemy import text
 
 from app.technical_analysis.service.enhanced_outcome_tracking_service import (
     EnhancedOutcomeTrackingService,
@@ -61,8 +62,6 @@ class OutcomeAnalysisHandler:
             session, outcome_repo, signal_repo = (
                 self.outcome_tracking_service._get_session_and_repositories()
             )
-
-            from sqlalchemy import text
 
             query = text(
                 """
@@ -148,8 +147,6 @@ class OutcomeAnalysisHandler:
                 self.outcome_tracking_service._get_session_and_repositories()
             )
 
-            from sqlalchemy import text
-
             query = text(
                 """
             SELECT 
@@ -215,8 +212,6 @@ class OutcomeAnalysisHandler:
             )
 
             return_column = f"return_{timeframe}"
-
-            from sqlalchemy import text
 
             query = text(
                 f"""
@@ -285,8 +280,6 @@ class OutcomeAnalysisHandler:
             session, outcome_repo, signal_repo = (
                 self.outcome_tracking_service._get_session_and_repositories()
             )
-
-            from sqlalchemy import text
 
             signal_types_str = "', '".join(signal_types)
 
@@ -370,8 +363,6 @@ class OutcomeAnalysisHandler:
             session, outcome_repo, signal_repo = (
                 self.outcome_tracking_service._get_session_and_repositories()
             )
-
-            from sqlalchemy import text
 
             recent_signals_query = text(
                 """

@@ -62,23 +62,31 @@ class ParallelExecutor:
         Returns:
             각 심볼별 작업 결과
         """
-        # 배치 크기 제한 (DB 연결 부하 감소)
-        batch_size = 1  # 배치 크기를 1로 고정 (순차 처리)
         results = []
 
-        for i, symbol in enumerate(symbols):
-            print(f"🔄 처리 중: {symbol} ({i+1}/{len(symbols)})")
-            try:
-                result = func(symbol)
-                results.append(result)
-            except Exception as e:
-                print(f"❌ {symbol} 처리 실패: {e}")
-                results.append(None)
+        # 진짜 병렬 처리
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
+            # 모든 작업을 동시에 제출
+            future_to_symbol = {
+                executor.submit(func, symbol): symbol for symbol in symbols
+            }
 
-            # 각 작업 간 지연 추가 (DB 연결 풀 회복 시간)
-            if i < len(symbols) - 1:  # 마지막이 아닌 경우
-                sleep_time = delay if delay > 0 else 5.0  # 최소 5초 지연
-                time.sleep(sleep_time)
+            # 완료된 작업들을 순서대로 수집
+            for future in concurrent.futures.as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    print(f"✅ {symbol} 처리 완료")
+                except Exception as e:
+                    print(f"❌ {symbol} 처리 실패: {e}")
+                    results.append(None)
+
+                # API 제한 고려한 지연 (병렬 처리 중에도 적용)
+                if delay > 0:
+                    time.sleep(delay)
 
         return results
 
