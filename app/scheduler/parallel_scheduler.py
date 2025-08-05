@@ -641,7 +641,7 @@ def run_async_technical_analysis_job():
 @handle_scheduler_errors(reraise=False, return_on_error=None)
 def run_daily_comprehensive_report():
     """
-    일일 종합 분석 리포트 생성 및 전송
+    일일 종합 분석 리포트 생성 및 텔레그램 전송
     - 백테스팅 성과 분석
     - 패턴 분석 결과
     - 머신러닝 기반 분석
@@ -650,18 +650,20 @@ def run_daily_comprehensive_report():
     logger.info("daily_comprehensive_report_started")
 
     service = DailyComprehensiveReportService()
-    # 주요 심볼들에 대한 배치 리포트 생성
-    major_symbols = ["^IXIC", "^GSPC", "^DJI", "AAPL", "MSFT"]
-    result = service.generate_batch_reports(major_symbols)
+    # 실제 텔레그램 전송을 하는 메서드 호출
+    result = service.generate_daily_report()
 
-    if result and "error" in result:
+    if result and result.get("status") == "error":
         raise SchedulerError(
-            message=f"일일 리포트 생성 실패: {result['error']}",
+            message=f"일일 리포트 생성 실패: {result.get('error', 'Unknown error')}",
             error_code=ErrorCode.TASK_EXECUTION_ERROR,
             details={"service": "daily_comprehensive_report", "result": result},
         )
     else:
-        logger.info("daily_comprehensive_report_completed")
+        logger.info(
+            "daily_comprehensive_report_completed",
+            message_length=result.get("report_length", 0),
+        )
 
 
 @memory_monitor()

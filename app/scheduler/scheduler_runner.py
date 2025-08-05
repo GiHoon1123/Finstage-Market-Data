@@ -861,53 +861,32 @@ def start_scheduler():
     print("🔄 APScheduler 시작됨")
 
     # =============================================================================
-    # 뉴스 크롤링 작업들 (빈도 최적화)
-    # 기존: 10분~30분마다 → 신규: 1시간마다 통일 (텔레그램 스팸 방지)
+    # 🔧 테스트용: 모든 뉴스 크롤링 작업을 3분마다 실행 (데이터 테스트용)
     # =============================================================================
-    scheduler.add_job(run_investing_economic_news, "interval", hours=1)
-    scheduler.add_job(run_investing_market_news, "interval", hours=1)
-    scheduler.add_job(run_yahoo_futures_news, "interval", hours=1)
-    scheduler.add_job(run_yahoo_index_news, "interval", hours=1)
-    scheduler.add_job(run_yahoo_stock_news, "interval", hours=1)
-    # 가격 스냅샷 작업들 (1시간마다 → 하루 1번으로 최적화)
-    # 일봉 기준에서는 하루 1번이면 충분함
-    scheduler.add_job(
-        run_high_price_update_job, "cron", hour=6, minute=0, timezone="Asia/Seoul"
-    )
-    scheduler.add_job(
-        run_previous_close_snapshot_job,
-        "cron",
-        hour=6,
-        minute=10,
-        timezone="Asia/Seoul",
-    )
-    scheduler.add_job(
-        run_previous_high_snapshot_job, "cron", hour=6, minute=20, timezone="Asia/Seoul"
-    )
-    scheduler.add_job(
-        run_previous_low_snapshot_job, "cron", hour=6, minute=30, timezone="Asia/Seoul"
-    )
+    scheduler.add_job(run_investing_economic_news, "interval", minutes=3)
+    scheduler.add_job(run_investing_market_news, "interval", minutes=3)
+    scheduler.add_job(run_yahoo_futures_news, "interval", minutes=3)
+    scheduler.add_job(run_yahoo_index_news, "interval", minutes=3)
+    scheduler.add_job(run_yahoo_stock_news, "interval", minutes=3)
+    # 🔧 테스트용: 가격 스냅샷 작업들을 3분마다 실행
+    scheduler.add_job(run_high_price_update_job, "interval", minutes=3)
+    scheduler.add_job(run_previous_close_snapshot_job, "interval", minutes=3)
+    scheduler.add_job(run_previous_high_snapshot_job, "interval", minutes=3)
+    scheduler.add_job(run_previous_low_snapshot_job, "interval", minutes=3)
 
     # =============================================================================
     # 현재 활성화된 작업들
     # =============================================================================
 
-    # 실시간 가격 모니터링 (1분 → 15분으로 변경)
-    # 일봉 기준 투자에서는 15분 간격이면 충분함
-    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=15)
+    # 🔧 테스트용: 실시간 가격 모니터링을 3분마다 실행
+    scheduler.add_job(run_realtime_price_monitor_job, "interval", minutes=3)
 
     # =============================================================================
     # 🆕 주요 지수 기술적 지표 모니터링 작업들
     # =============================================================================
 
-    # 주요 지수 일봉 기술적 지표 분석 (나스닥 + S&P 500)
-    # - 나스닥 지수 (^IXIC): 기술주 중심 분석
-    # - S&P 500 지수 (^GSPC): 전체 시장 분석
-    # - 장기 투자 관점에서 가장 중요한 신호들
-    # - 매일 오전 7시 KST 실행 (한국 시간 기준)
-    scheduler.add_job(
-        run_daily_index_analysis, "cron", hour=7, minute=0, timezone="Asia/Seoul"
-    )
+    # 🔧 테스트용: 주요 지수 일봉 기술적 지표 분석을 3분마다 실행
+    scheduler.add_job(run_daily_index_analysis, "interval", minutes=3)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트용)
@@ -926,14 +905,11 @@ def start_scheduler():
     # 🆕 Phase 2: 결과 추적 스케줄러 작업들
     # =============================================================================
 
-    # 신호 결과 추적 업데이트 (1시간마다)
-    # - 미완료된 신호들의 가격 및 수익률 업데이트
-    # - Phase 2의 핵심 기능
-    scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
+    # 🔧 테스트용: 신호 결과 추적 업데이트를 3분마다 실행
+    scheduler.add_job(run_outcome_tracking_update, "interval", minutes=3)
 
-    # 최근 신호들 결과 추적 초기화 (6시간마다)
-    # - 아직 추적이 시작되지 않은 신호들을 찾아서 추적 시작
-    scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
+    # 🔧 테스트용: 최근 신호들 결과 추적 초기화를 3분마다 실행
+    scheduler.add_job(initialize_recent_signals_tracking, "interval", minutes=3)
 
     # =============================================================================
     # 서버 시작시 즉시 실행 (테스트 및 초기화)
