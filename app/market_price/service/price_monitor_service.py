@@ -77,7 +77,7 @@ class PriceMonitorService:
             rise_threshold = self._get_threshold(symbol, "price_rise")
             if rise_threshold is not None and percent >= rise_threshold:
                 if not self.alert_log_service.exists_recent_alert(
-                    symbol, "price_rise", "prev_close", 1440
+                    symbol, "price_rise", "prev_close", 3
                 ):
                     send_price_rise_message(
                         symbol, current_price, prev_snapshot.close, percent, now
@@ -102,7 +102,7 @@ class PriceMonitorService:
             drop_threshold = self._get_threshold(symbol, "price_drop")
             if drop_threshold is not None and percent <= drop_threshold:
                 if not self.alert_log_service.exists_recent_alert(
-                    symbol, "price_drop", "prev_close", 1440
+                    symbol, "price_drop", "prev_close", 3
                 ):
                     send_price_drop_message(
                         symbol, current_price, prev_snapshot.close, percent, now
@@ -195,7 +195,7 @@ class PriceMonitorService:
             )
             if current_price > prev_high:
                 if not self.alert_log_service.exists_recent_alert(
-                    symbol, "break_prev_high", "prev_high", 1440
+                    symbol, "break_prev_high", "prev_high", 3
                 ):
                     send_break_previous_high(symbol, current_price, prev_high, now)
                     self.alert_log_service.save_alert(
@@ -220,7 +220,7 @@ class PriceMonitorService:
             )
             if current_price < prev_low:
                 if not self.alert_log_service.exists_recent_alert(
-                    symbol, "break_prev_low", "prev_low", 1440
+                    symbol, "break_prev_low", "prev_low", 3
                 ):
                     send_break_previous_low(symbol, current_price, prev_low, now)
                     self.alert_log_service.save_alert(

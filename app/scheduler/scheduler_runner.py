@@ -75,6 +75,10 @@ from app.common.utils.parallel_executor import (
 )
 from app.common.utils.logging_config import get_logger
 from app.common.exceptions.handlers import handle_scheduler_errors, safe_execute
+from app.market_price.service.daily_price_auto_updater import (
+    run_daily_price_update,
+    check_data_status,
+)
 
 logger = get_logger("scheduler_runner")
 from app.common.infra.database.config.database_config import (
@@ -873,6 +877,9 @@ def start_scheduler():
     scheduler.add_job(run_previous_close_snapshot_job, "interval", minutes=3)
     scheduler.add_job(run_previous_high_snapshot_job, "interval", minutes=3)
     scheduler.add_job(run_previous_low_snapshot_job, "interval", minutes=3)
+
+    # 🔧 테스트용: 일봉 데이터 자동 업데이트를 3분마다 실행 (원래는 매일 오전 9시)
+    scheduler.add_job(run_daily_price_update, "interval", minutes=3)
 
     # =============================================================================
     # 현재 활성화된 작업들

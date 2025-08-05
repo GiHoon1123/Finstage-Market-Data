@@ -1138,11 +1138,24 @@ class DailyComprehensiveReportService:
     def _format_telegram_message(
         self, all_data: Dict[str, Any], insights: Dict[str, Any]
     ) -> str:
-        """텔레그램 메시지 포맷팅 (실제 클러스터링 결과 사용)"""
+        """텔레그램 메시지 포맷팅 (일반인 친화적 설명 포함)"""
 
         # 헤더
         today = datetime.now().strftime("%Y-%m-%d")
-        message = f"""🚀 일일 퀀트 분석 리포트 ({today})
+        weekday = datetime.now().strftime("%A")
+        weekday_kr = {
+            "Monday": "월",
+            "Tuesday": "화",
+            "Wednesday": "수",
+            "Thursday": "목",
+            "Friday": "금",
+            "Saturday": "토",
+            "Sunday": "일",
+        }
+
+        message = f"""🚀 일일 퀀트 분석 리포트 ({today} {weekday_kr.get(weekday, weekday)})
+
+💡 이 리포트는 AI가 과거 10년간의 주식 데이터를 분석해서 만든 투자 참고 자료입니다.
 
 📈 주요 지수 현황"""
 
@@ -1167,30 +1180,85 @@ class DailyComprehensiveReportService:
             signals_data = data.get("signals", {})
             total_signals = signals_data.get("summary", {}).get("total_signals", 0)
 
+            # 가격 변화 해석
+            price_trend = ""
+            if change_percent > 1.0:
+                price_trend = "📈 강한 상승세"
+            elif change_percent > 0.3:
+                price_trend = "🔼 약한 상승세"
+            elif change_percent < -1.0:
+                price_trend = "📉 강한 하락세"
+            elif change_percent < -0.3:
+                price_trend = "🔽 약한 하락세"
+            else:
+                price_trend = "🔄 보합세"
+
             message += f"""
 
 🔹 {symbol_name} ({symbol})
-┌─ 현재가: {current_price:,.2f} ({change_percent:+.2f}%)
-│  📊 ML 클러스터링: {cluster_groups}개 그룹 ({total_patterns}개 패턴)
-│  🟢 상승 패턴: {bullish_patterns}개
-│  🔴 하락 패턴: {bearish_patterns}개
-│  📡 생성된 신호: {total_signals}개"""
+┌─ 현재가: {current_price:,.2f}원 ({change_percent:+.2f}%) {price_trend}
+│
+│  🤖 AI 패턴 분석 결과:
+│  ├─ 총 {total_patterns}개 패턴을 {cluster_groups}개 그룹으로 분류
+│  ├─ 🟢 상승 신호 그룹: {bullish_patterns}개 (매수 관련)
+│  ├─ 🔴 하락 신호 그룹: {bearish_patterns}개 (매도 관련)
+│  └─ 📡 오늘 새로 발생한 신호: {total_signals}개"""
 
-            # 가장 강한 클러스터 정보
+            # 가장 강한 클러스터 정보와 해석
             strongest_bullish = ml_data.get("strongest_bullish")
             if strongest_bullish:
+                success_rate = strongest_bullish["success_rate"]
+                success_interpretation = ""
+                if success_rate >= 70:
+                    success_interpretation = "매우 신뢰도 높음 ⭐⭐⭐"
+                elif success_rate >= 60:
+                    success_interpretation = "신뢰도 높음 ⭐⭐"
+                elif success_rate >= 50:
+                    success_interpretation = "보통 신뢰도 ⭐"
+                else:
+                    success_interpretation = "낮은 신뢰도 ⚠️"
+
+                pattern_name_kr = self._translate_pattern_name(
+                    strongest_bullish["name"]
+                )
+
                 message += f"""
-│  🚀 최강 상승: {strongest_bullish['name']} ({strongest_bullish['pattern_count']}개, {strongest_bullish['success_rate']:.1f}%)"""
+│
+│  🚀 가장 강한 상승 신호:
+│  ├─ 패턴명: {pattern_name_kr}
+│  ├─ 발생 횟수: {strongest_bullish['pattern_count']}번
+│  ├─ 성공률: {success_rate:.1f}% ({success_interpretation})
+│  └─ 의미: 이 패턴이 나타나면 과거에 {success_rate:.0f}% 확률로 주가가 올랐습니다"""
 
             strongest_bearish = ml_data.get("strongest_bearish")
             if strongest_bearish:
-                message += f"""
-│  📉 최강 하락: {strongest_bearish['name']} ({strongest_bearish['pattern_count']}개, {strongest_bearish['success_rate']:.1f}%)"""
+                success_rate = strongest_bearish["success_rate"]
+                success_interpretation = ""
+                if success_rate >= 70:
+                    success_interpretation = "매우 신뢰도 높음 ⭐⭐⭐"
+                elif success_rate >= 60:
+                    success_interpretation = "신뢰도 높음 ⭐⭐"
+                elif success_rate >= 50:
+                    success_interpretation = "보통 신뢰도 ⭐"
+                else:
+                    success_interpretation = "낮은 신뢰도 ⚠️"
 
-        # 투자 인사이트
+                pattern_name_kr = self._translate_pattern_name(
+                    strongest_bearish["name"]
+                )
+
+                message += f"""
+│
+│  📉 가장 강한 하락 신호:
+│  ├─ 패턴명: {pattern_name_kr}
+│  ├─ 발생 횟수: {strongest_bearish['pattern_count']}번
+│  ├─ 성공률: {success_rate:.1f}% ({success_interpretation})
+│  └─ 의미: 이 패턴이 나타나면 과거에 {success_rate:.0f}% 확률로 주가가 떨어졌습니다"""
+
+        # 투자 인사이트 (더 자세한 설명)
         message += f"""
 
-🎯 오늘의 투자 인사이트"""
+🎯 오늘의 투자 전략 가이드"""
 
         for key, value in insights.items():
             if key not in [
@@ -1202,22 +1270,91 @@ class DailyComprehensiveReportService:
                 message += f"""
 • {value}"""
 
-        # 종합 분석
+        # 리스크 수준별 상세 설명
+        risk_level = insights.get("risk_level", "중간")
+        risk_explanation = ""
+        if risk_level == "높음":
+            risk_explanation = "⚠️ 시장 변동성이 큽니다. 소액 분할 투자를 권장합니다."
+        elif risk_level == "중간":
+            risk_explanation = "📊 적정한 리스크 수준입니다. 신중한 투자 결정을 하세요."
+        else:
+            risk_explanation = "✅ 상대적으로 안정적인 시장 상황입니다."
+
+        # 종합 분석 (일반인 친화적 설명)
         message += f"""
 
-📊 종합 분석 요약
-• 전체 분석 정확도: {insights.get('overall_accuracy', 0):.1f}%
-• 분석된 패턴 수: {insights.get('analyzed_patterns', 0)}개
-• ML 클러스터 그룹: {insights.get('ml_clusters', 0)}개
-• 리스크 수준: {insights.get('risk_level', '중간')}
+📊 AI 분석 결과 요약
+┌─ 분석 신뢰도: {insights.get('overall_accuracy', 0):.1f}%
+│  └─ 의미: AI가 {insights.get('overall_accuracy', 0):.0f}% 확률로 정확한 예측을 할 수 있습니다
+│
+├─ 분석한 패턴: {insights.get('analyzed_patterns', 0)}개
+│  └─ 의미: 과거 10년간 {insights.get('analyzed_patterns', 0)}개의 주가 패턴을 학습했습니다
+│
+├─ AI 그룹 분류: {insights.get('ml_clusters', 0)}개
+│  └─ 의미: 복잡한 패턴들을 {insights.get('ml_clusters', 0)}개의 이해하기 쉬운 그룹으로 정리했습니다
+│
+└─ 투자 위험도: {risk_level}
+   └─ {risk_explanation}
 
-🤖 머신러닝 클러스터링 분석
-• K-means 알고리즘으로 패턴을 자동 그룹화
-• 유사한 특성의 패턴들을 클러스터로 분류
-• 각 클러스터별 성공률과 성향 분석
-• 상승/하락/중립 패턴 그룹 식별
+🤖 AI 분석 방법 설명
+┌─ K-means 클러스터링이란?
+│  └─ 비슷한 특성의 주가 패턴들을 자동으로 그룹화하는 AI 기술
+│
+├─ 어떻게 분석하나요?
+│  ├─ 1단계: 과거 10년간의 주가 데이터 수집
+│  ├─ 2단계: 상승/하락 패턴들을 찾아내기
+│  ├─ 3단계: 비슷한 패턴들끼리 그룹으로 묶기
+│  └─ 4단계: 각 그룹의 성공률 계산하기
+│
+└─ 신뢰할 수 있나요?
+   ├─ ✅ 과거 데이터 기반의 통계적 분석
+   ├─ ✅ 수백 개 패턴의 객관적 분류
+   └─ ⚠️ 미래 수익을 보장하지는 않음 (참고용)
+
+💰 투자 시 주의사항
+• 이 분석은 투자 참고 자료일 뿐, 투자 권유가 아닙니다
+• 과거 성과가 미래 수익을 보장하지 않습니다
+• 본인의 투자 성향과 재정 상황을 고려하세요
+• 분산 투자와 리스크 관리를 잊지 마세요
 
 ⏰ 다음 업데이트: 내일 오전 8시
-📱 실시간 알림: 중요 신호 발생시 즉시 전송"""
+📱 실시간 알림: 중요 신호 발생시 즉시 전송
+📞 문의: 투자 관련 질문은 전문가와 상담하세요"""
 
         return message
+
+    def _translate_pattern_name(self, pattern_name: str) -> str:
+        """패턴 이름을 일반인이 이해하기 쉬운 한국어로 번역"""
+        translations = {
+            "BB_상승_패턴": "볼린저밴드 상승 돌파 패턴",
+            "BB_하락_패턴": "볼린저밴드 하락 돌파 패턴",
+            "RSI_중립_패턴": "RSI 중립 구간 패턴",
+            "RSI_상승_패턴": "RSI 과매도 반등 패턴",
+            "RSI_하락_패턴": "RSI 과매수 조정 패턴",
+            "BREAKOUT_상승_패턴": "저항선 돌파 상승 패턴",
+            "BREAKOUT_하락_패턴": "지지선 이탈 하락 패턴",
+            "THEN_상승_패턴": "연속 상승 신호 패턴",
+            "THEN_하락_패턴": "연속 하락 신호 패턴",
+            "CROSS_중립_패턴": "이동평균선 교차 패턴",
+            "CROSS_상승_패턴": "골든크로스 상승 패턴",
+            "CROSS_하락_패턴": "데드크로스 하락 패턴",
+            "VOLUME_중립_패턴": "거래량 변화 패턴",
+            "VOLUME_상승_패턴": "거래량 급증 상승 패턴",
+            "VOLUME_하락_패턴": "거래량 감소 하락 패턴",
+            "MA_상승_패턴": "이동평균선 상승 패턴",
+            "MA_하락_패턴": "이동평균선 하락 패턴",
+            "MACD_상승_패턴": "MACD 상승 전환 패턴",
+            "MACD_하락_패턴": "MACD 하락 전환 패턴",
+        }
+
+        # 기본 번역이 있으면 사용, 없으면 원본에서 간단히 변환
+        if pattern_name in translations:
+            return translations[pattern_name]
+
+        # 기본 변환 로직
+        korean_name = pattern_name.replace("_", " ")
+        korean_name = korean_name.replace("상승", "📈 상승")
+        korean_name = korean_name.replace("하락", "📉 하락")
+        korean_name = korean_name.replace("중립", "🔄 중립")
+
+        return korean_name
