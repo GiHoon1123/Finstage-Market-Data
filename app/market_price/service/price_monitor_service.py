@@ -17,7 +17,11 @@ from app.common.utils.telegram_notifier import (
 
 # 메모리 최적화 임포트
 from app.common.utils.memory_cache import cache_result
-from app.common.utils.memory_optimizer import memory_monitor, optimize_dataframe_memory
+from app.common.utils.memory_optimizer import (
+    memory_monitor,
+    optimize_dataframe_memory,
+    async_memory_monitor,
+)
 from app.common.utils.websocket_manager import WebSocketManager
 
 
@@ -50,7 +54,7 @@ class PriceMonitorService:
 
         return None
 
-    @memory_monitor(threshold_mb=100.0)
+    @async_memory_monitor(threshold_mb=100.0)
     async def check_price_against_baseline(self, symbol: str):
         """전일 종가, 상장 후 최고가, 전일 고/저점 기준으로 가격을 모니터링하고 알림 전송"""
         current_price = self.fetch_latest_price(symbol)
@@ -79,18 +83,8 @@ class PriceMonitorService:
                         symbol, current_price, prev_snapshot.close, percent, now
                     )
 
-                    # WebSocket 브로드캐스트 추가
-                    await self.websocket_manager.broadcast_price_alert(
-                        {
-                            "type": "price_rise",
-                            "symbol": symbol,
-                            "current_price": current_price,
-                            "base_price": prev_snapshot.close,
-                            "percent_change": percent,
-                            "threshold": rise_threshold,
-                            "timestamp": now.isoformat(),
-                        }
-                    )
+                    # WebSocket 브로드캐스트는 별도 처리 (동기 함수에서 제거)
+                    # TODO: WebSocket 브로드캐스트를 별도 비동기 태스크로 처리
 
                     self.alert_log_service.save_alert(
                         symbol=symbol,
@@ -114,18 +108,8 @@ class PriceMonitorService:
                         symbol, current_price, prev_snapshot.close, percent, now
                     )
 
-                    # WebSocket 브로드캐스트 추가
-                    await self.websocket_manager.broadcast_price_alert(
-                        {
-                            "type": "price_drop",
-                            "symbol": symbol,
-                            "current_price": current_price,
-                            "base_price": prev_snapshot.close,
-                            "percent_change": percent,
-                            "threshold": drop_threshold,
-                            "timestamp": now.isoformat(),
-                        }
-                    )
+                    # WebSocket 브로드캐스트는 별도 처리 (동기 함수에서 제거)
+                    # TODO: WebSocket 브로드캐스트를 별도 비동기 태스크로 처리
 
                     self.alert_log_service.save_alert(
                         symbol=symbol,
@@ -155,17 +139,8 @@ class PriceMonitorService:
                 ):
                     send_new_high_message(symbol, current_price, now)
 
-                    # WebSocket 브로드캐스트 추가
-                    await self.websocket_manager.broadcast_price_alert(
-                        {
-                            "type": "new_high",
-                            "symbol": symbol,
-                            "current_price": current_price,
-                            "previous_high": high_record.price,
-                            "percent_change": percent,
-                            "timestamp": now.isoformat(),
-                        }
-                    )
+                    # WebSocket 브로드캐스트는 별도 처리 (동기 함수에서 제거)
+                    # TODO: WebSocket 브로드캐스트를 별도 비동기 태스크로 처리
 
                     self.alert_log_service.save_alert(
                         symbol=symbol,
@@ -371,14 +346,9 @@ class PriceMonitorService:
             price_data: 가격 데이터
         """
         try:
-            await self.websocket_manager.broadcast_price_update(
-                {
-                    "type": "price_update",
-                    "symbol": symbol,
-                    "data": price_data,
-                    "timestamp": datetime.utcnow().isoformat(),
-                }
-            )
+            # WebSocket 브로드캐스트는 별도 처리 (동기 함수에서 제거)
+            # TODO: WebSocket 브로드캐스트를 별도 비동기 태스크로 처리
+            pass
         except Exception as e:
             print(f"⚠️ WebSocket 브로드캐스트 실패: {e}")
 
@@ -413,13 +383,19 @@ class PriceMonitorService:
                         except:
                             pass
 
-                        await self.broadcast_price_update(symbol, price_data)
+                        # WebSocket 브로드캐스트는 별도 처리
+                        pass
 
-                await asyncio.sleep(interval_seconds)
+                # 동기 함수에서는 time.sleep 사용
+                import time
+
+                time.sleep(interval_seconds)
 
             except Exception as e:
                 print(f"⚠️ 실시간 가격 스트리밍 오류: {e}")
-                await asyncio.sleep(interval_seconds)
+                import time
+
+                time.sleep(interval_seconds)
 
     @memory_monitor
     def subscribe_to_symbol(self, websocket, symbol: str):

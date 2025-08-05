@@ -334,29 +334,58 @@ def run_realtime_price_monitor_job_parallel():
     """실시간 가격 모니터링 (병렬)"""
     logger.info("realtime_price_monitoring_started")
 
-    def check_price(symbol):
-        return safe_execute(
-            lambda: _check_price_for_symbol(symbol),
-            default_return=None,
-            log_errors=True,
-        )
+    async def run_async_price_monitoring():
+        """비동기 가격 모니터링 실행"""
+        import asyncio
 
-    def _check_price_for_symbol(symbol):
-        # 세션 컨텍스트 매니저 사용
-        with session_scope() as session:
-            service = PriceMonitorService()
-            # 세션 명시적 전달 (가능한 경우)
-            if hasattr(service, "set_session"):
-                service.set_session(session)
-            result = service.check_price_against_baseline(symbol)
-            return result
+        async def check_price_async(symbol):
+            try:
+                with session_scope() as session:
+                    service = PriceMonitorService()
+                    if hasattr(service, "set_session"):
+                        service.set_session(session)
 
-    # 병렬 실행 (배치 크기 제한 및 지연 시간 증가)
-    results = executor.run_symbol_tasks_parallel(
-        check_price, list(SYMBOL_PRICE_MAP.keys()), delay=1.0  # 0.5 → 1.0으로 증가
+                    result = await service.check_price_against_baseline(symbol)
+                    return result
+            except Exception as e:
+                logger.error(f"price_monitoring_failed", symbol=symbol, error=str(e))
+                return None
+
+        # 심볼들을 배치로 나누어 처리 (동시성 제한)
+        symbols = list(SYMBOL_PRICE_MAP.keys())
+        batch_size = 5  # 동시 처리할 심볼 수 제한
+        results = []
+
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+
+            # 배치 내 심볼들을 동시에 처리
+            batch_tasks = [check_price_async(symbol) for symbol in batch]
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+            results.extend(batch_results)
+
+            # 배치 간 지연 (API 제한 고려)
+            await asyncio.sleep(1.0)
+
+        return results
+
+    # 비동기 함수 실행
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    try:
+        results = loop.run_until_complete(run_async_price_monitoring())
+    finally:
+        # 새로 생성된 루프만 닫기
+        if not loop.is_running():
+            loop.close()
+
+    success_count = sum(
+        1 for r in results if r is not None and not isinstance(r, Exception)
     )
-
-    success_count = sum(1 for r in results if r is not None)
     logger.info(
         "realtime_price_monitoring_completed",
         success_count=success_count,
@@ -372,101 +401,93 @@ def start_parallel_scheduler():
 
     logger.info("parallel_scheduler_starting")
 
-    # 🆕 통합 뉴스 크롤링 작업 (경제 뉴스 + 지수 뉴스)
+    # 🔧 테스트용: 모든 작업을 3분 간격으로 실행 (데이터 흐름 확인용)
     scheduler.add_job(
-        run_integrated_news_crawling_parallel, "interval", minutes=90
-    )  # 통합 뉴스 90분마다 (기존 60분×2 → 90분×1로 최적화)
+        run_integrated_news_crawling_parallel, "interval", minutes=3
+    )  # 통합 뉴스 3분마다
 
-    # 🆕 모든 종목 뉴스 크롤링 활성화 (데이터 흐름 확인용)
     scheduler.add_job(
-        run_yahoo_futures_news_parallel, "interval", hours=2
-    )  # 선물 뉴스 2시간마다
+        run_yahoo_futures_news_parallel, "interval", minutes=3
+    )  # 선물 뉴스 3분마다
     scheduler.add_job(
-        run_yahoo_stock_news_parallel, "interval", hours=3
-    )  # 종목 뉴스 3시간마다
+        run_yahoo_stock_news_parallel, "interval", minutes=3
+    )  # 종목 뉴스 3분마다
     scheduler.add_job(
-        run_investing_market_news_parallel, "interval", hours=4
-    )  # 시장 뉴스 4시간마다
+        run_investing_market_news_parallel, "interval", minutes=3
+    )  # 시장 뉴스 3분마다
 
-    # 가격 관련 작업 (핵심만 유지) - 주요 지수만 모니터링
+    # 가격 관련 작업도 3분마다
     scheduler.add_job(
-        run_high_price_update_job_parallel,
-        "interval",
-        hours=4,  # 2시간 → 4시간으로 더 감소
-    )
+        run_high_price_update_job_parallel, "interval", minutes=3
+    )  # 최고가 갱신 3분마다
 
-    # 실시간 모니터링 (핵심만) - 간격 더 증가
+    # 실시간 모니터링도 3분마다
     scheduler.add_job(
-        run_realtime_price_monitor_job_parallel, "interval", minutes=30
-    )  # 10분 → 30분으로 대폭 감소
+        run_realtime_price_monitor_job_parallel, "interval", minutes=3
+    )  # 가격 모니터링 3분마다
 
-    # 스냅샷 작업들 제거 (일일 리포트에서 충분히 커버)
-    # scheduler.add_job(run_previous_close_snapshot_job_parallel, ...)  # 제거
-    # scheduler.add_job(run_previous_high_snapshot_job_parallel, ...)   # 제거
-    # scheduler.add_job(run_previous_low_snapshot_job_parallel, ...)    # 제거
+    # 스냅샷 작업들도 3분마다 활성화
+    scheduler.add_job(
+        run_previous_close_snapshot_job_parallel, "interval", minutes=3
+    )  # 전일 종가 스냅샷 3분마다
+    scheduler.add_job(
+        run_previous_high_snapshot_job_parallel, "interval", minutes=3
+    )  # 전일 고점 스냅샷 3분마다
+    scheduler.add_job(
+        run_previous_low_snapshot_job_parallel, "interval", minutes=3
+    )  # 전일 저점 스냅샷 3분마다
 
-    # 무거운 작업들을 백그라운드 작업 큐로 이전
-    # 작업 큐에 무거운 작업들 스케줄링
+    # 백그라운드 작업들도 3분마다 테스트
     task_queue = TaskQueue()
 
-    # 일일 종합 리포트를 백그라운드로 스케줄링 (매일 오전 6시)
+    # 일일 종합 리포트를 백그라운드로 3분마다 스케줄링
     scheduler.add_job(
         lambda: task_queue.enqueue_task(
             run_daily_comprehensive_report_background,
             symbols=["^IXIC", "^GSPC", "^DJI"],
         ),
-        "cron",
-        hour=6,
-        minute=0,
+        "interval",
+        minutes=3,
     )
 
-    # 히스토리컬 데이터 수집을 백그라운드로 스케줄링 (주말 오전 2시)
+    # 히스토리컬 데이터 수집도 3분마다
     scheduler.add_job(
         lambda: task_queue.enqueue_task(
             run_historical_data_collection_background,
             symbols=list(SYMBOL_PRICE_MAP.keys()),
             period="3mo",
         ),
-        "cron",
-        day_of_week="sat",
-        hour=2,
-        minute=0,
+        "interval",
+        minutes=3,
     )
 
-    # 기술적 분석 배치를 백그라운드로 스케줄링 (매일 오후 2시)
+    # 기술적 분석 배치도 3분마다
     scheduler.add_job(
         lambda: task_queue.enqueue_task(
             run_technical_analysis_batch_background,
             symbols=["^IXIC", "^GSPC", "^DJI", "AAPL", "MSFT"],
             analysis_types=["indicators", "signals"],
         ),
-        "cron",
-        hour=14,
-        minute=0,
+        "interval",
+        minutes=3,
     )
 
-    # 기존 기술적 지표 모니터링 작업들은 그대로 유지
+    # 기존 기술적 지표 모니터링 작업들도 3분마다
+    scheduler.add_job(run_daily_index_analysis, "interval", minutes=3)
+    scheduler.add_job(run_outcome_tracking_update, "interval", minutes=3)
+    scheduler.add_job(initialize_recent_signals_tracking, "interval", minutes=3)
 
-    # 일일 지수 분석은 scheduler_runner.py에서 오전 7시에만 실행
-    # scheduler.add_job(run_daily_index_analysis, "interval", hours=1)  # 제거됨
-    scheduler.add_job(run_outcome_tracking_update, "interval", hours=1)
-    scheduler.add_job(initialize_recent_signals_tracking, "interval", hours=6)
+    # 패턴 발견 및 분석도 3분마다
+    scheduler.add_job(run_pattern_discovery, "interval", minutes=3)
 
-    # 🆕 패턴 발견 및 분석 (매일 오전 6시)
-    scheduler.add_job(
-        run_pattern_discovery, "cron", hour=6, minute=0, timezone="Asia/Seoul"
-    )
+    # 일일 종합 분석 리포트도 3분마다
+    scheduler.add_job(run_daily_comprehensive_report, "interval", minutes=3)
 
-    # 🆕 일일 종합 분석 리포트 (매일 오전 8시)
-    scheduler.add_job(
-        run_daily_comprehensive_report, "cron", hour=8, minute=0, timezone="Asia/Seoul"
-    )
+    # 메모리 최적화 작업도 3분마다
+    scheduler.add_job(run_memory_optimization_job, "interval", minutes=3)
 
-    # 🆕 메모리 최적화 작업 (매 시간마다)
-    scheduler.add_job(run_memory_optimization_job, "interval", hours=1)
-
-    # 🆕 비동기 기술적 분석 작업 (매 30분마다)
-    scheduler.add_job(run_async_technical_analysis_job, "interval", minutes=30)
+    # 비동기 기술적 분석 작업도 3분마다
+    scheduler.add_job(run_async_technical_analysis_job, "interval", minutes=3)
 
     logger.info("parallel_scheduler_started")
     scheduler.start()
@@ -629,7 +650,9 @@ def run_daily_comprehensive_report():
     logger.info("daily_comprehensive_report_started")
 
     service = DailyComprehensiveReportService()
-    result = service.generate_daily_report()
+    # 주요 심볼들에 대한 배치 리포트 생성
+    major_symbols = ["^IXIC", "^GSPC", "^DJI", "AAPL", "MSFT"]
+    result = service.generate_batch_reports(major_symbols)
 
     if result and "error" in result:
         raise SchedulerError(

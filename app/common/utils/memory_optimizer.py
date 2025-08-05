@@ -195,11 +195,12 @@ def memory_efficient_batch_processor(
             raise
 
 
-def memory_monitor(threshold_mb: float = 500.0):
+def memory_monitor(func=None, *, threshold_mb: float = 500.0):
     """
     메모리 사용량 모니터링 데코레이터
 
     Args:
+        func: 데코레이트할 함수 (직접 사용 시)
         threshold_mb: 경고 임계값 (MB)
     """
 
@@ -255,6 +256,10 @@ def memory_monitor(threshold_mb: float = 500.0):
                 raise
 
         return wrapper
+
+    # 매개변수 없이 직접 사용된 경우
+    if func is not None:
+        return decorator(func)
 
     return decorator
 
@@ -706,5 +711,121 @@ def profile_memory(label: str = None):
                 raise
 
         return wrapper
+
+    return decorator
+
+
+def async_memory_monitor(threshold_mb: float = 500.0):
+    """
+    비동기 함수용 메모리 사용량 모니터링 데코레이터
+
+    Args:
+        threshold_mb: 경고 임계값 (MB)
+    """
+
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            # 실행 전 메모리 상태
+            before_memory = MemoryOptimizer.get_memory_usage()
+            start_time = time.time()
+
+            try:
+                result = await func(*args, **kwargs)
+
+                # 실행 후 메모리 상태
+                after_memory = MemoryOptimizer.get_memory_usage()
+                execution_time = time.time() - start_time
+
+                memory_diff = after_memory["rss_mb"] - before_memory["rss_mb"]
+
+                # 메모리 사용량 로깅
+                logger.info(
+                    "async_function_memory_usage",
+                    function=func.__name__,
+                    execution_time=round(execution_time, 3),
+                    memory_before_mb=before_memory["rss_mb"],
+                    memory_after_mb=after_memory["rss_mb"],
+                    memory_diff_mb=round(memory_diff, 2),
+                    memory_percent=after_memory["percent"],
+                )
+
+                # 임계값 초과 경고
+                if after_memory["rss_mb"] > threshold_mb:
+                    logger.warning(
+                        "high_memory_usage_detected",
+                        function=func.__name__,
+                        memory_usage_mb=after_memory["rss_mb"],
+                        threshold_mb=threshold_mb,
+                    )
+
+                return result
+
+            except Exception as e:
+                after_memory = MemoryOptimizer.get_memory_usage()
+                execution_time = time.time() - start_time
+
+                logger.error(
+                    "async_function_memory_error",
+                    function=func.__name__,
+                    execution_time=round(execution_time, 3),
+                    memory_mb=after_memory["rss_mb"],
+                    error=str(e),
+                )
+                raise
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # 동기 함수용 래퍼 (기존 memory_monitor와 동일)
+            before_memory = MemoryOptimizer.get_memory_usage()
+            start_time = time.time()
+
+            try:
+                result = func(*args, **kwargs)
+
+                after_memory = MemoryOptimizer.get_memory_usage()
+                execution_time = time.time() - start_time
+                memory_diff = after_memory["rss_mb"] - before_memory["rss_mb"]
+
+                logger.info(
+                    "function_memory_usage",
+                    function=func.__name__,
+                    execution_time=round(execution_time, 3),
+                    memory_before_mb=before_memory["rss_mb"],
+                    memory_after_mb=after_memory["rss_mb"],
+                    memory_diff_mb=round(memory_diff, 2),
+                    memory_percent=after_memory["percent"],
+                )
+
+                if after_memory["rss_mb"] > threshold_mb:
+                    logger.warning(
+                        "high_memory_usage_detected",
+                        function=func.__name__,
+                        memory_usage_mb=after_memory["rss_mb"],
+                        threshold_mb=threshold_mb,
+                    )
+
+                return result
+
+            except Exception as e:
+                after_memory = MemoryOptimizer.get_memory_usage()
+                execution_time = time.time() - start_time
+
+                logger.error(
+                    "function_memory_error",
+                    function=func.__name__,
+                    execution_time=round(execution_time, 3),
+                    memory_mb=after_memory["rss_mb"],
+                    error=str(e),
+                )
+                raise
+
+        # 함수가 코루틴인지 확인하여 적절한 래퍼 반환
+        import asyncio
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
 
     return decorator

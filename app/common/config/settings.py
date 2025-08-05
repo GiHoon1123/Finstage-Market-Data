@@ -150,8 +150,8 @@ class SecuritySettings(BaseSettings):
         description="애플리케이션 시크릿 키",
     )
     encryption_key: Optional[str] = Field(None, description="데이터 암호화 키")
-    allowed_hosts: List[str] = Field(["*"], description="허용된 호스트 목록")
-    cors_origins: List[str] = Field(["*"], description="CORS 허용 오리진")
+    allowed_hosts: str = Field("*", description="허용된 호스트 (쉼표 구분)")
+    cors_origins: str = Field("*", description="CORS 허용 오리진 (쉼표 구분)")
 
     @validator("secret_key")
     def validate_secret_key(cls, v):
