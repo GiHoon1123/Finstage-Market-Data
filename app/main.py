@@ -48,6 +48,9 @@ from app.technical_analysis.web.route.async_api_router import router as async_ap
 from app.technical_analysis.web.route.async_technical_router import (
     router as async_technical_router,
 )
+from app.technical_analysis.web.route.recovery_router import (
+    router as recovery_router,
+)
 
 # 스케줄러 imports
 from app.scheduler.scheduler_runner import start_scheduler
@@ -155,6 +158,13 @@ app.include_router(
 app.include_router(
     async_technical_router,
     tags=["Async Technical Analysis V2"],
+)
+
+# 복구 API 라우터 등록
+app.include_router(
+    recovery_router,
+    prefix="/api/recovery",
+    tags=["Recovery API"],
 )
 
 # 모니터링 라우터 등록
