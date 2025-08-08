@@ -98,3 +98,8 @@ wheel @ file:///opt/homebrew/Cellar/python%403.12/3.12.5/libexec/wheel-0.44.0-py
 wsproto==1.2.0
 yarl==1.20.0
 yfinance==0.2.57
+# ML/Deep Learning packages for price prediction
+tensorflow==2.18.0
+scikit-learn==1.6.0
+matplotlib==3.10.0
+seaborn==0.13.2

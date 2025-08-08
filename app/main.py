@@ -51,6 +51,9 @@ from app.technical_analysis.web.route.async_technical_router import (
 from app.technical_analysis.web.route.recovery_router import (
     router as recovery_router,
 )
+from app.ml_prediction.web.route.ml_prediction_router import (
+    router as ml_prediction_router,
+)
 
 # 스케줄러 imports
 from app.scheduler.scheduler_runner import start_scheduler
@@ -165,6 +168,13 @@ app.include_router(
     recovery_router,
     prefix="/api/recovery",
     tags=["Recovery API"],
+)
+
+# ML 예측 API 라우터 등록
+app.include_router(
+    ml_prediction_router,
+    prefix="/api",
+    tags=["ML Prediction"],
 )
 
 # 모니터링 라우터 등록
