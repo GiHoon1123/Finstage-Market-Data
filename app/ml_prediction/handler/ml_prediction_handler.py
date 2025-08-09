@@ -20,13 +20,13 @@ from fastapi import HTTPException, status
 from app.ml_prediction.service.ml_prediction_service import MLPredictionService
 from app.ml_prediction.service.model_management_service import ModelManagementService
 from app.ml_prediction.ml.evaluation.backtester import BacktestConfig
-from app.ml_prediction.web.dto.request_models import (
+from app.ml_prediction.dto.request_models import (
     TrainModelRequest,
     PredictionRequest,
     EvaluationRequest,
     BacktestRequest,
 )
-from app.ml_prediction.web.dto.response_models import (
+from app.ml_prediction.dto.response_models import (
     TrainModelResponse,
     PredictionResponse,
     EvaluationResponse,
@@ -36,7 +36,7 @@ from app.ml_prediction.web.dto.response_models import (
     ModelInfo,
     PredictionResult,
 )
-from app.ml_prediction.web.dto.error_models import (
+from app.ml_prediction.dto.error_models import (
     ErrorCode,
     create_error_response,
     ERROR_HTTP_STATUS,

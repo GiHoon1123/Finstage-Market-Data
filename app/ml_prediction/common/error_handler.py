@@ -25,7 +25,7 @@ from app.ml_prediction.common.exceptions import (
     ValidationError,
     EXCEPTION_MAPPING,
 )
-from app.ml_prediction.web.dto.error_models import (
+from app.ml_prediction.dto.error_models import (
     ErrorResponse,
     ValidationErrorResponse,
     ValidationErrorDetail,

@@ -20,21 +20,21 @@ import uuid
 from datetime import datetime
 
 from app.ml_prediction.handler.ml_prediction_handler import MLPredictionHandler
-from app.ml_prediction.web.dto.request_models import (
+from app.ml_prediction.dto.request_models import (
     TrainModelRequest,
     PredictionRequest,
     EvaluationRequest,
     BacktestRequest,
     PredictionTimeframe,
 )
-from app.ml_prediction.web.dto.response_models import (
+from app.ml_prediction.dto.response_models import (
     TrainModelResponse,
     PredictionResponse,
     EvaluationResponse,
     BacktestResponse,
     ServiceStatusResponse,
 )
-from app.ml_prediction.web.dto.error_models import (
+from app.ml_prediction.dto.error_models import (
     ErrorResponse,
     ValidationErrorResponse,
 )
