@@ -90,7 +90,11 @@ class MultiOutputLSTMPredictor:
         logger.info(
             "building_multi_output_lstm_model",
             input_shape=self.input_shape,
-            lstm_units=self.config.lstm_units,
+            lstm_units=(
+                self.config.lstm_units
+                if hasattr(self.config, "lstm_units")
+                else ml_settings.model.lstm_units
+            ),
             target_days=self.target_days,
         )
 
@@ -100,9 +104,14 @@ class MultiOutputLSTMPredictor:
         # LSTM 레이어들
         x = inputs
 
-        for i, units in enumerate(self.config.lstm_units):
+        lstm_units = (
+            self.config.lstm_units
+            if hasattr(self.config, "lstm_units")
+            else ml_settings.model.lstm_units
+        )
+        for i, units in enumerate(lstm_units):
             # 마지막 LSTM 레이어가 아니면 return_sequences=True
-            return_sequences = i < len(self.config.lstm_units) - 1
+            return_sequences = i < len(lstm_units) - 1
 
             x = layers.LSTM(
                 units=units,
@@ -569,11 +578,17 @@ class MultiOutputLSTMPredictor:
     def _log_model_architecture(self) -> None:
         """모델 구조 로깅"""
         if self.model is not None:
-            # 모델 요약을 문자열로 캡처
-            summary_lines = []
-            self.model.summary(print_fn=lambda x: summary_lines.append(x))
-
-            logger.debug("model_architecture", summary="\n".join(summary_lines))
+            try:
+                # 모델 요약을 문자열로 캡처
+                summary_lines = []
+                self.model.summary(print_fn=lambda x: summary_lines.append(x))
+                logger.debug("model_architecture", summary="\n".join(summary_lines))
+            except Exception as summary_error:
+                logger.warning(
+                    "model_summary_failed",
+                    error=str(summary_error),
+                    reason="console_width_or_display_issue",
+                )
 
     def _save_metadata(self, filepath: str) -> None:
         """메타데이터 저장"""

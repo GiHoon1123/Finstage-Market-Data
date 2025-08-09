@@ -51,7 +51,7 @@ class MLPredictionService:
             config: ML 설정
         """
         self.config = config or ml_settings
-        self.trainer = ModelTrainer(self.config)
+        self.trainer = ModelTrainer()
         self.predictor = MultiTimeframePredictor()
         self.evaluator = ModelEvaluator()
         self.result_tracker = PredictionResultTracker()
@@ -206,7 +206,7 @@ class MLPredictionService:
             # 결과 저장
             if save_results and prediction_result["status"] == "success":
                 await self._save_prediction_results(
-                    symbol, prediction_date, prediction_result["predictions"]
+                    symbol, prediction_date, prediction_result
                 )
 
             logger.info(
@@ -241,17 +241,23 @@ class MLPredictionService:
         )
 
     async def _save_prediction_results(
-        self, symbol: str, prediction_date: date, predictions: List[Dict[str, Any]]
+        self, symbol: str, prediction_date: date, prediction_result: Dict[str, Any]
     ) -> None:
         """예측 결과 저장"""
         session = SessionLocal()
         prediction_repo = MLPredictionRepository(session)
 
         try:
-            # 배치 ID 생성
-            batch_id = f"{symbol}_{prediction_date.strftime('%Y%m%d')}_{datetime.now().strftime('%H%M%S')}"
+            # 전체 결과에서 공통 정보 추출
+            batch_id = prediction_result.get(
+                "batch_id",
+                f"{symbol}_{prediction_date.strftime('%Y%m%d')}_{datetime.now().strftime('%H%M%S')}",
+            )
+            model_version = prediction_result.get("model_version", "unknown")
+            model_type = prediction_result.get("model_type", "lstm")
+            current_price = prediction_result.get("current_price", 0.0)
 
-            for pred in predictions:
+            for pred in prediction_result.get("predictions", []):
                 prediction_entity = MLPrediction(
                     symbol=symbol,
                     prediction_date=prediction_date,
@@ -260,7 +266,9 @@ class MLPredictionService:
                     predicted_price=pred["predicted_price"],
                     predicted_direction=pred["predicted_direction"],
                     confidence_score=pred["confidence_score"],
-                    model_version=pred["model_version"],
+                    current_price=current_price,
+                    model_version=model_version,
+                    model_type=model_type,
                     batch_id=batch_id,
                     created_at=datetime.now(),
                 )
@@ -272,7 +280,7 @@ class MLPredictionService:
                 symbol=symbol,
                 prediction_date=prediction_date,
                 batch_id=batch_id,
-                predictions_count=len(predictions),
+                predictions_count=len(prediction_result.get("predictions", [])),
             )
 
         except Exception as e:

@@ -162,7 +162,9 @@ class ModelTrainer:
             logger.info("starting_model_training")
             training_metadata = model_predictor.train(
                 X_train=X_splits["train"],
-                y_train=y_splits,
+                y_train={
+                    timeframe: splits["train"] for timeframe, splits in y_splits.items()
+                },
                 X_val=X_splits["val"],
                 y_val={
                     timeframe: splits["val"] for timeframe, splits in y_splits.items()
@@ -211,6 +213,7 @@ class ModelTrainer:
 
             # 8. 훈련 결과 정리
             training_results = {
+                "status": "success",
                 "session_id": session_id,
                 "model_name": model_name,
                 "model_version": model_version,
@@ -347,7 +350,7 @@ class ModelTrainer:
 
         performance_metrics = {}
 
-        for timeframe in self.model_config.model.target_days:
+        for timeframe in self.model_config.target_days:
             timeframe_key = f"{timeframe}d"
 
             if timeframe_key in predictions and timeframe_key in y_test:
@@ -443,7 +446,10 @@ class ModelTrainer:
         """
         # 모델 저장 경로 생성
         model_dir = ml_settings.get_model_save_path(model_name, model_version)
-        model_path = os.path.join(model_dir, "model")
+        model_extension = (
+            ".keras" if ml_settings.storage.model_format == "keras" else ".h5"
+        )
+        model_path = os.path.join(model_dir, f"model{model_extension}")
 
         # 모델 저장
         model_predictor.save_model(
@@ -567,11 +573,15 @@ class ModelTrainer:
             saved_model = repository.save(model_entity)
 
             if saved_model:
+                # 모델을 활성 상태로 설정
+                repository.activate_model(saved_model.id)
+
                 logger.info(
                     "model_metadata_saved",
                     model_id=saved_model.id,
                     model_name=model_name,
                     model_version=model_version,
+                    is_active=True,
                 )
                 return saved_model
             else:

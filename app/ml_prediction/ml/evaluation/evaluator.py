@@ -15,7 +15,16 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+try:
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    mean_squared_error = None
+    mean_absolute_error = None
+    r2_score = None
+    SKLEARN_AVAILABLE = False
 import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO

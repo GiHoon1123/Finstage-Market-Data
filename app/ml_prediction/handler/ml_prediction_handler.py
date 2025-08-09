@@ -110,6 +110,7 @@ class MLPredictionHandler:
             # 응답 변환
             if result["status"] == "success":
                 model_info = ModelInfo(
+                    model_id=result.get("model_id"),
                     model_name=result["model_name"],
                     model_version=result["model_version"],
                     model_type=result.get("model_type", "lstm"),
@@ -237,7 +238,7 @@ class MLPredictionHandler:
                                 else pred["target_date"]
                             ),
                             predicted_price=pred["predicted_price"],
-                            current_price=pred["current_price"],
+                            current_price=result["current_price"],
                             price_change_percent=pred["price_change_percent"],
                             predicted_direction=pred["predicted_direction"],
                             confidence_score=pred["confidence_score"],
@@ -245,17 +246,15 @@ class MLPredictionHandler:
                     )
 
                 # 모델 정보 변환
-                model_info_data = result["model_info"]
                 model_info = ModelInfo(
-                    model_name=model_info_data["model_name"],
-                    model_version=model_info_data["model_version"],
-                    model_type=model_info_data["model_type"],
+                    model_id=result.get("model_id"),
+                    model_name=f"{request.symbol.replace('^', '')}_lstm",
+                    model_version=result.get("model_version", "unknown"),
+                    model_type=result.get("model_type", "lstm"),
                     symbol=request.symbol,
-                    is_active=model_info_data.get("is_active", True),
-                    training_date=model_info_data.get("training_date"),
-                    created_at=model_info_data.get(
-                        "created_at", datetime.now().isoformat()
-                    ),
+                    is_active=True,
+                    training_date=None,
+                    created_at=result.get("created_at", datetime.now().isoformat()),
                 )
 
                 return PredictionResponse(
@@ -263,7 +262,11 @@ class MLPredictionHandler:
                     message="Prediction completed successfully",
                     timestamp=datetime.now().isoformat(),
                     symbol=request.symbol,
-                    prediction_date=result["prediction_date"],
+                    prediction_date=(
+                        result["prediction_date"].isoformat()
+                        if isinstance(result["prediction_date"], date)
+                        else result["prediction_date"]
+                    ),
                     model_info=model_info,
                     predictions=predictions,
                     batch_id=result.get("batch_id"),

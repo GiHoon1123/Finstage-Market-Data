@@ -16,8 +16,22 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
-from sklearn.model_selection import train_test_split
+
+try:
+    from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
+    from sklearn.model_selection import train_test_split
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    # Fallback for sklearn import issues
+    MinMaxScaler = None
+    StandardScaler = None
+    RobustScaler = None
+    train_test_split = None
+    SKLEARN_AVAILABLE = False
+    StandardScaler = None
+    RobustScaler = None
+    train_test_split = None
 import joblib
 import os
 

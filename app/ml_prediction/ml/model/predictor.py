@@ -101,30 +101,75 @@ class MultiTimeframePredictor:
 
         try:
             # 1. 모델 로드
-            model_predictor, model_entity = self._load_model(symbol, model_version)
+            try:
+                model_predictor, model_entity = self._load_model(symbol, model_version)
+                logger.debug(
+                    "model_loaded_successfully",
+                    symbol=symbol,
+                    model_entity_type=(
+                        type(model_entity).__name__ if model_entity else None
+                    ),
+                    has_model_version=(
+                        hasattr(model_entity, "model_version")
+                        if model_entity
+                        else False
+                    ),
+                    model_version_value=(
+                        getattr(model_entity, "model_version", None)
+                        if model_entity
+                        else None
+                    ),
+                )
+            except Exception as e:
+                logger.error(
+                    "model_load_failed_in_predict", symbol=symbol, error=str(e)
+                )
+                raise
 
             # 2. 예측용 데이터 준비
-            X_pred, data_metadata = self.preprocessor.prepare_prediction_data(
-                symbol=symbol, end_date=prediction_date
-            )
+            try:
+                X_pred, data_metadata = self.preprocessor.prepare_prediction_data(
+                    symbol=symbol, end_date=prediction_date
+                )
+                logger.debug("prediction_data_prepared", symbol=symbol)
+            except Exception as e:
+                logger.error("data_preparation_failed", symbol=symbol, error=str(e))
+                raise
 
             # 3. 예측 실행
-            raw_predictions = model_predictor.predict(X_pred)
+            try:
+                raw_predictions = model_predictor.predict(X_pred)
+                logger.debug("raw_prediction_completed", symbol=symbol)
+            except Exception as e:
+                logger.error("raw_prediction_failed", symbol=symbol, error=str(e))
+                raise
 
             # 4. 예측 결과 역정규화
-            denormalized_predictions = (
-                self.preprocessor.feature_engineer.denormalize_predictions(
-                    raw_predictions
+            try:
+                denormalized_predictions = (
+                    self.preprocessor.feature_engineer.denormalize_predictions(
+                        raw_predictions
+                    )
                 )
-            )
+                logger.debug("denormalization_completed", symbol=symbol)
+            except Exception as e:
+                logger.error("denormalization_failed", symbol=symbol, error=str(e))
+                raise
 
             # 5. 신뢰도 계산
-            confidence_scores = self._calculate_confidence_scores(
-                model_predictor, X_pred, raw_predictions
-            )
+            try:
+                confidence_scores = self._calculate_confidence_scores(
+                    model_predictor, X_pred, raw_predictions
+                )
+                logger.debug("confidence_calculation_completed", symbol=symbol)
+            except Exception as e:
+                logger.error(
+                    "confidence_calculation_failed", symbol=symbol, error=str(e)
+                )
+                raise
 
             # 6. 예측 결과 구성
-            current_price = data_metadata["last_price"]
+            current_price = data_metadata.get("last_price", 0.0)
             prediction_results = []
 
             for timeframe, predicted_price in denormalized_predictions.items():
@@ -160,21 +205,39 @@ class MultiTimeframePredictor:
 
             # 8. 최종 예측 결과
             final_result = {
+                "status": "success",
                 "batch_id": batch_id,
                 "symbol": symbol,
                 "prediction_date": prediction_date,
                 "current_price": current_price,
-                "model_version": model_entity.model_version,
-                "model_type": model_entity.model_type,
+                "model_id": getattr(model_entity, "id", None) if model_entity else None,
+                "model_version": (
+                    getattr(model_entity, "model_version", "unknown")
+                    if model_entity
+                    else "unknown"
+                ),
+                "model_type": (
+                    getattr(model_entity, "model_type", "lstm")
+                    if model_entity
+                    else "lstm"
+                ),
                 "predictions": prediction_results,
                 "consistency_score": consistency_score,
                 "data_metadata": data_metadata,
                 "created_at": datetime.now().isoformat(),
             }
 
-            # 9. 예측 결과 저장
-            if save_prediction:
-                self._save_predictions(final_result, model_entity)
+            # 9. 예측 결과 저장 (predictor 레벨에서는 비활성화, 서비스 레벨에서 처리)
+            # if save_prediction:
+            #     try:
+            #         self._save_predictions(final_result, model_entity)
+            #     except Exception as save_error:
+            #         logger.warning(
+            #             "prediction_save_failed",
+            #             symbol=symbol,
+            #             batch_id=batch_id,
+            #             error=str(save_error),
+            #         )
 
             # 10. 캐시에 저장
             self.current_predictions[batch_id] = final_result
@@ -320,8 +383,16 @@ class MultiTimeframePredictor:
             logger.info(
                 "model_loaded",
                 symbol=symbol,
-                model_name=model_entity.model_name,
-                model_version=model_entity.model_version,
+                model_name=(
+                    getattr(model_entity, "model_name", "unknown")
+                    if model_entity
+                    else "unknown"
+                ),
+                model_version=(
+                    getattr(model_entity, "model_version", "unknown")
+                    if model_entity
+                    else "unknown"
+                ),
                 cache_key=cache_key,
             )
 
@@ -501,7 +572,37 @@ class MultiTimeframePredictor:
         try:
             saved_predictions = []
 
+            # 디버깅: model_entity 확인
+            logger.info(
+                "saving_predictions_debug",
+                model_entity_exists=model_entity is not None,
+                model_entity_type=type(model_entity).__name__ if model_entity else None,
+                has_model_version=(
+                    hasattr(model_entity, "model_version") if model_entity else False
+                ),
+            )
+
             for pred in prediction_result["predictions"]:
+                # 안전한 model_version 추출
+                safe_model_version = "unknown"
+                safe_model_type = "lstm"
+
+                if model_entity:
+                    try:
+                        safe_model_version = (
+                            getattr(model_entity, "model_version", "unknown")
+                            or "unknown"
+                        )
+                        safe_model_type = (
+                            getattr(model_entity, "model_type", "lstm") or "lstm"
+                        )
+                    except Exception as attr_error:
+                        logger.warning(
+                            "model_entity_attribute_access_failed",
+                            error=str(attr_error),
+                            model_entity_type=type(model_entity).__name__,
+                        )
+
                 # MLPrediction 엔티티 생성
                 prediction_entity = MLPrediction.create_prediction(
                     symbol=prediction_result["symbol"],
@@ -512,8 +613,8 @@ class MultiTimeframePredictor:
                     current_price=prediction_result["current_price"],
                     predicted_price=pred["predicted_price"],
                     confidence_score=pred["confidence_score"],
-                    model_version=model_entity.model_version,
-                    model_type=model_entity.model_type,
+                    model_version=safe_model_version,
+                    model_type=safe_model_type,
                     features_used=prediction_result["data_metadata"].get(
                         "feature_names", []
                     ),
