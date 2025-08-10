@@ -13,6 +13,11 @@ from fastapi import APIRouter, HTTPException, Query, Path
 from app.technical_analysis.service.technical_monitor_service import (
     TechnicalMonitorService,
 )
+from app.technical_analysis.dto.test_response import (
+    TestAlertResponse,
+    EnvironmentCheckResponse,
+)
+from app.common.config.api_metadata import common_responses
 from app.common.utils.telegram_notifier import (
     send_ma_breakout_message,
     send_rsi_alert_message,
@@ -25,30 +30,63 @@ from app.common.utils.telegram_notifier import (
 router = APIRouter()
 
 
-@router.post("/telegram-alerts/all", summary="모든 텔레그램 알림 테스트")
-async def test_all_alerts():
+@router.post(
+    "/telegram-alerts/all",
+    response_model=TestAlertResponse,
+    summary="전체 텔레그램 알림 테스트",
+    description="""
+    모든 유형의 텔레그램 알림을 한 번에 테스트합니다.
+    
+    **테스트하는 알림 타입:**
+    - 이동평균선 돌파 알림
+    - RSI 과매도/과매수 알림
+    - 골든크로스/데드크로스 알림
+    - 볼린저 밴드 알림
+    
+    **사용 용도:**
+    - 알림 시스템 전체 점검
+    - 텔레그램 봇 연결 상태 확인
+    - 기술적 분석 엔진 동작 검증
+    """,
+    tags=["Testing"],
+    responses={
+        **common_responses,
+        200: {
+            "description": "모든 알림 테스트가 성공적으로 완료되었습니다.",
+            "model": TestAlertResponse,
+        },
+    },
+)
+async def test_all_alerts() -> TestAlertResponse:
     """
     모든 유형의 텔레그램 알림을 테스트합니다.
 
-    이 엔드포인트는 TechnicalMonitorService의 test_all_technical_alerts 메서드를 호출하여
-    다양한 유형의 기술적 분석 알림을 테스트합니다.
+    시스템의 모든 기술적 분석 알림 기능을 한 번에 테스트하여
+    알림 시스템의 전반적인 동작 상태를 확인합니다.
     """
     try:
         service = TechnicalMonitorService()
         service.test_all_technical_alerts()
 
-        return {
-            "success": True,
-            "message": "모든 텔레그램 알림 테스트가 성공적으로 실행되었습니다.",
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return TestAlertResponse(
+            success=True,
+            message="모든 텔레그램 알림 테스트가 성공적으로 실행되었습니다.",
+            alert_type="ALL_ALERTS",
+            timestamp=datetime.utcnow().isoformat(),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
 
 
-@router.post("/telegram-alerts/ma-breakout", summary="이동평균선 돌파 알림 테스트")
+@router.post(
+    "/telegram-alerts/ma-breakout",
+    response_model=TestAlertResponse,
+    summary="이동평균선 돌파 알림 테스트",
+    description="이동평균선 돌파 알림 기능을 테스트합니다.",
+    tags=["Testing"],
+)
 async def test_ma_breakout_alert(
-    symbol: str = Query("^IXIC", description="심볼 (예: ^IXIC, ^GSPC)"),
+    symbol: str = Query("AAPL", description="테스트할 심볼"),
     ma_period: int = Query(
         200, description="이동평균 기간 (예: 5, 10, 21, 50, 100, 200)"
     ),
@@ -96,9 +134,15 @@ async def test_ma_breakout_alert(
         raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
 
 
-@router.post("/telegram-alerts/rsi", summary="RSI 알림 테스트")
+@router.post(
+    "/telegram-alerts/rsi",
+    response_model=TestAlertResponse,
+    summary="RSI 알림 테스트",
+    description="RSI 과매도/과매수 알림 기능을 테스트합니다.",
+    tags=["Testing"],
+)
 async def test_rsi_alert(
-    symbol: str = Query("^IXIC", description="심볼 (예: ^IXIC, ^GSPC)"),
+    symbol: str = Query("AAPL", description="테스트할 심볼"),
     signal_type: str = Query(
         "overbought", description="신호 유형 (overbought 또는 oversold)"
     ),
@@ -134,9 +178,15 @@ async def test_rsi_alert(
         raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
 
 
-@router.post("/telegram-alerts/cross", summary="골든크로스/데드크로스 알림 테스트")
+@router.post(
+    "/telegram-alerts/cross",
+    response_model=TestAlertResponse,
+    summary="골든크로스/데드크로스 알림 테스트",
+    description="골든크로스와 데드크로스 알림 기능을 테스트합니다.",
+    tags=["Testing"],
+)
 async def test_cross_alert(
-    symbol: str = Query("^IXIC", description="심볼 (예: ^IXIC, ^GSPC)"),
+    symbol: str = Query("AAPL", description="테스트할 심볼"),
     cross_type: str = Query("golden", description="크로스 유형 (golden 또는 dead)"),
 ):
     """
@@ -170,9 +220,15 @@ async def test_cross_alert(
         raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
 
 
-@router.post("/telegram-alerts/bollinger", summary="볼린저 밴드 알림 테스트")
+@router.post(
+    "/telegram-alerts/bollinger",
+    response_model=TestAlertResponse,
+    summary="볼린저 밴드 알림 테스트",
+    description="볼린저 밴드 상/하한선 터치 알림을 테스트합니다.",
+    tags=["Testing"],
+)
 async def test_bollinger_alert(
-    symbol: str = Query("^IXIC", description="심볼 (예: ^IXIC, ^GSPC)"),
+    symbol: str = Query("AAPL", description="테스트할 심볼"),
     signal_type: str = Query(
         "touch_upper",
         description="신호 유형 (touch_upper, touch_lower, break_upper, break_lower)",
@@ -218,8 +274,14 @@ async def test_bollinger_alert(
         raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
 
 
-@router.get("/env-check", summary="환경 변수 확인")
-async def check_environment():
+@router.get(
+    "/env-check",
+    response_model=EnvironmentCheckResponse,
+    summary="환경 설정 확인",
+    description="시스템 환경 변수와 설정 상태를 확인합니다.",
+    tags=["Testing"],
+)
+async def check_environment() -> EnvironmentCheckResponse:
     """
     텔레그램 알림에 필요한 환경 변수가 설정되어 있는지 확인합니다.
     """

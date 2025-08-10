@@ -7,6 +7,11 @@
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from app.technical_analysis.dto.signal_response import (
+    SignalListResponse,
+    TechnicalSignalResponse,
+)
+from app.common.config.api_metadata import common_responses
 from app.technical_analysis.service.signal_storage_service import SignalStorageService
 from app.technical_analysis.service.technical_monitor_service import (
     TechnicalMonitorService,
@@ -47,34 +52,62 @@ signal_filtering_service = SignalFilteringService()
 # =============================================================================
 
 
-@router.get("/signals", summary="최근 기술적 신호 조회")
+@router.get(
+    "/signals",
+    response_model=SignalListResponse,
+    summary="기술적 분석 신호 조회",
+    description="""
+    최근 발생한 기술적 분석 신호들을 조회합니다.
+    
+    **주요 기능:**
+    - 다양한 필터 조건으로 신호 검색
+    - 시간 범위별 신호 조회
+    - 신호 강도 및 신뢰도 정보 제공
+    - 실시간 신호 모니터링 지원
+    
+    **지원하는 신호 타입:**
+    - MA200_breakout_up/down: 200일 이동평균선 돌파
+    - RSI_oversold/overbought: RSI 과매도/과매수
+    - MACD_bullish/bearish: MACD 강세/약세 신호
+    - Bollinger_squeeze: 볼린저 밴드 압축
+    
+    **사용 사례:**
+    - 매매 타이밍 포착
+    - 시장 동향 분석
+    - 포트폴리오 리밸런싱
+    - 알고리즘 트레이딩 신호
+    """,
+    tags=["Technical Analysis"],
+    responses={
+        **common_responses,
+        200: {
+            "description": "기술적 신호를 성공적으로 조회했습니다.",
+            "model": SignalListResponse,
+        },
+    },
+)
 async def get_recent_signals(
-    symbol: Optional[str] = Query(None, description="심볼 필터 (예: NQ=F, ^IXIC)"),
+    symbol: Optional[str] = Query(
+        None, example="AAPL", description="심볼 필터 (예: AAPL, MSFT, ^IXIC)"
+    ),
     signal_type: Optional[str] = Query(
-        None, description="신호 타입 필터 (예: MA200_breakout_up)"
+        None,
+        example="MA200_breakout_up",
+        description="신호 타입 필터 (예: MA200_breakout_up, RSI_oversold)",
     ),
     timeframe: Optional[str] = Query(
-        None, description="시간대 필터 (1min, 15min, 1day)"
+        None, example="1d", description="시간대 필터 (1min, 15min, 1h, 1d)"
     ),
     hours: int = Query(
-        24, description="조회할 시간 범위 (시간)", ge=1, le=168
-    ),  # 최대 1주일
-    limit: int = Query(50, description="최대 조회 개수", ge=1, le=200),
-) -> Dict[str, Any]:
+        24, description="조회할 시간 범위 (시간)", ge=1, le=168, example=24
+    ),
+    limit: int = Query(50, description="최대 조회 개수", ge=1, le=200, example=50),
+) -> SignalListResponse:
     """
-    최근 발생한 기술적 신호들을 조회합니다.
+    최근 발생한 기술적 분석 신호들을 조회합니다.
 
-    다양한 필터 조건을 사용하여 원하는 신호들만 조회할 수 있습니다.
-
-    Args:
-        symbol: 심볼 필터 (선택사항)
-        signal_type: 신호 타입 필터 (선택사항)
-        timeframe: 시간대 필터 (선택사항)
-        hours: 조회할 시간 범위 (기본: 24시간)
-        limit: 최대 조회 개수 (기본: 50개)
-
-    Returns:
-        신호 리스트와 메타데이터
+    다양한 필터 조건을 사용하여 원하는 신호들만 선별적으로 조회할 수 있으며,
+    각 신호의 강도와 신뢰도 정보를 함께 제공합니다.
     """
     try:
         session = SessionLocal()
@@ -125,9 +158,14 @@ async def get_recent_signals(
         raise HTTPException(status_code=500, detail=f"신호 조회 실패: {str(e)}")
 
 
-@router.get("/signals/{symbol}", summary="특정 심볼의 신호 조회")
+@router.get(
+    "/signals/{symbol}",
+    summary="심볼별 신호 조회",
+    description="특정 심볼에서 발생한 기술적 분석 신호들을 조회합니다.",
+    tags=["Technical Analysis"],
+)
 async def get_signals_by_symbol(
-    symbol: str = Path(..., description="심볼 (예: NQ=F, ^IXIC)"),
+    symbol: str = Path(..., example="AAPL", description="조회할 심볼"),
     signal_type: Optional[str] = Query(None, description="신호 타입 필터"),
     timeframe: Optional[str] = Query(None, description="시간대 필터"),
     limit: int = Query(100, description="최대 조회 개수", ge=1, le=500),
@@ -189,7 +227,12 @@ async def get_signals_by_symbol(
 # =============================================================================
 
 
-@router.get("/stats/signal-count", summary="신호 발생 통계")
+@router.get(
+    "/stats/signal-count",
+    summary="신호 발생 통계",
+    description="지정된 기간 동안의 신호 발생 통계를 조회합니다.",
+    tags=["Technical Analysis"],
+)
 async def get_signal_count_stats(
     days: int = Query(30, description="조회할 일수", ge=1, le=365),
     symbol: Optional[str] = Query(None, description="심볼 필터"),
@@ -259,9 +302,14 @@ async def get_signal_count_stats(
         raise HTTPException(status_code=500, detail=f"신호 통계 조회 실패: {str(e)}")
 
 
-@router.get("/stats/daily-count/{symbol}", summary="일별 신호 발생 횟수")
+@router.get(
+    "/stats/daily-count/{symbol}",
+    summary="일별 신호 발생 횟수",
+    description="특정 심볼의 일별 신호 발생 횟수를 조회합니다.",
+    tags=["Technical Analysis"],
+)
 async def get_daily_signal_count(
-    symbol: str = Path(..., description="심볼"),
+    symbol: str = Path(..., example="AAPL", description="조회할 심볼"),
     days: int = Query(30, description="조회할 일수", ge=1, le=90),
 ) -> Dict[str, Any]:
     """
@@ -408,7 +456,12 @@ async def get_current_technical_status(
 # =============================================================================
 
 
-@router.get("/performance/all", summary="전체 신호 성과 분석")
+@router.get(
+    "/performance/all",
+    summary="전체 신호 성과 분석",
+    description="모든 신호 타입의 성과를 종합적으로 분석합니다.",
+    tags=["Technical Analysis"],
+)
 async def get_all_signals_performance(
     timeframe_eval: str = Query("1d", description="평가 기간 (1h, 1d, 1w, 1m)"),
     min_samples: int = Query(10, description="최소 샘플 수", ge=1, le=100),
@@ -486,7 +539,12 @@ async def get_signal_type_performance(
         )
 
 
-@router.post("/backtest/strategy", summary="매매 전략 백테스팅")
+@router.post(
+    "/backtest/strategy",
+    summary="매매 전략 백테스팅",
+    description="선택한 신호들을 조합한 매매 전략의 백테스팅을 수행합니다.",
+    tags=["Technical Analysis"],
+)
 async def backtest_trading_strategy(
     signal_types: List[str] = Query(..., description="사용할 신호 타입들"),
     initial_capital: float = Query(10000.0, description="초기 자본금 ($)", ge=1000),

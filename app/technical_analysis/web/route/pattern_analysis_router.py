@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any
 from app.technical_analysis.service.pattern_analysis_service import (
     PatternAnalysisService,
 )
+from app.common.config.api_metadata import common_responses
 
 # 라우터 생성
 router = APIRouter()
@@ -22,10 +23,40 @@ pattern_analysis_service = PatternAnalysisService()
 # =============================================================================
 
 
-@router.post("/discover/{symbol}", summary="패턴 자동 발견")
+@router.post(
+    "/discover/{symbol}",
+    summary="차트 패턴 자동 발견",
+    description="""
+    특정 심볼에서 반복되는 차트 패턴을 자동으로 발견하고 분석합니다.
+    
+    **주요 기능:**
+    - AI 기반 패턴 인식
+    - 반복 패턴 식별
+    - 패턴 성과 분석
+    - 매매 신호 생성
+    
+    **지원하는 패턴:**
+    - 헤드앤숄더
+    - 더블탑/더블바텀
+    - 삼각형 패턴
+    - 플래그/페넌트
+    
+    **활용 방안:**
+    - 패턴 기반 매매 전략
+    - 기술적 분석 자동화
+    - 백테스팅 데이터 생성
+    """,
+    tags=["Pattern Analysis"],
+    responses={
+        **common_responses,
+        200: {"description": "패턴 발견이 성공적으로 완료되었습니다."},
+    },
+)
 async def discover_patterns(
-    symbol: str = Path(..., description="분석할 심볼 (예: NQ=F)"),
-    timeframe: str = Query("15min", description="시간대 (1min, 15min, 1day)"),
+    symbol: str = Path(..., example="AAPL", description="분석할 주식 심볼"),
+    timeframe: str = Query(
+        "1d", example="1d", description="시간대 (1min, 15min, 1h, 1d)"
+    ),
 ) -> Dict[str, Any]:
     """
     특정 심볼에서 반복되는 신호 패턴을 자동으로 발견합니다.
@@ -59,7 +90,12 @@ async def discover_patterns(
         raise HTTPException(status_code=500, detail=f"패턴 발견 실패: {str(e)}")
 
 
-@router.get("/analysis", summary="패턴 성과 분석")
+@router.get(
+    "/analysis",
+    summary="패턴 성과 분석",
+    description="발견된 패턴들의 성과를 분석합니다.",
+    tags=["Pattern Analysis"],
+)
 async def get_pattern_analysis(
     pattern_name: Optional[str] = Query(None, description="분석할 패턴명"),
     symbol: Optional[str] = Query(None, description="심볼 필터"),
@@ -98,7 +134,12 @@ async def get_pattern_analysis(
         raise HTTPException(status_code=500, detail=f"패턴 분석 실패: {str(e)}")
 
 
-@router.get("/successful", summary="성공적인 패턴 조회")
+@router.get(
+    "/successful",
+    summary="성공적인 패턴 조회",
+    description="높은 성과를 보인 패턴들을 조회합니다.",
+    tags=["Pattern Analysis"],
+)
 async def get_successful_patterns(
     symbol: Optional[str] = Query(None, description="심볼 필터"),
     success_threshold: float = Query(0.7, description="성공 임계값", ge=0.1, le=1.0),
@@ -141,7 +182,12 @@ async def get_successful_patterns(
         )
 
 
-@router.post("/test/{symbol}", summary="패턴 분석 테스트")
+@router.post(
+    "/test/{symbol}",
+    summary="패턴 분석 테스트",
+    description="특정 심볼에 대한 패턴 분석을 테스트합니다.",
+    tags=["Pattern Analysis"],
+)
 async def test_pattern_analysis(
     symbol: str = Path(..., description="테스트할 심볼"),
 ) -> Dict[str, Any]:
@@ -171,7 +217,12 @@ async def test_pattern_analysis(
         raise HTTPException(status_code=500, detail=f"패턴 분석 테스트 실패: {str(e)}")
 
 
-@router.delete("/test/{symbol}", summary="테스트 패턴 정리")
+@router.delete(
+    "/test/{symbol}",
+    summary="테스트 패턴 정리",
+    description="테스트로 생성된 패턴 데이터를 정리합니다.",
+    tags=["Pattern Analysis"],
+)
 async def cleanup_test_patterns(
     symbol: str = Path(..., description="정리할 심볼"),
 ) -> Dict[str, Any]:

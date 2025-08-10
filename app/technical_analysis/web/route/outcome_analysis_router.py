@@ -40,16 +40,42 @@ from app.technical_analysis.dto.outcome_analysis_response import (
     "/tracking/summary",
     response_model=TrackingSummaryResponse,
     summary="결과 추적 현황 요약",
+    description="""
+    현재 기술적 분석 신호들의 결과 추적 현황을 요약하여 제공합니다.
+    
+    **제공 정보:**
+    - 총 추적 중인 신호 수
+    - 완료된 추적 수  
+    - 진행 중인 추적 수
+    - 전체 완료율
+    
+    **사용 용도:**
+    - 시스템 모니터링 대시보드
+    - 신호 추적 시스템 상태 확인
+    - 성과 분석 기초 데이터
+    """,
+    tags=["Outcome Analysis"],
+    responses={
+        200: {
+            "description": "추적 현황 요약을 성공적으로 조회했습니다.",
+            "model": TrackingSummaryResponse,
+        },
+        500: {
+            "description": "서버 내부 오류가 발생했습니다.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database connection failed"}
+                }
+            },
+        },
+    },
 )
 async def get_tracking_summary():
     """
-    현재 결과 추적 상황의 요약 정보를 반환합니다.
+    기술적 분석 신호들의 결과 추적 현황 요약 정보를 조회합니다.
 
-    Returns:
-        - total_tracked: 총 추적 중인 신호 수
-        - completed: 완료된 추적 수
-        - pending: 진행 중인 추적 수
-        - completion_rate: 완료율 (%)
+    실시간으로 업데이트되는 신호 추적 상태를 기반으로
+    전체적인 시스템 운영 현황을 파악할 수 있습니다.
     """
     try:
         result = handler.get_tracking_summary()
@@ -61,7 +87,9 @@ async def get_tracking_summary():
             completion_rate=result["completion_rate"],
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get tracking summary: {str(e)}"
+        )
 
 
 @router.get(
@@ -147,7 +175,12 @@ async def get_performance_by_signal_type(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/performance/top-performers", summary="최고 성과 신호 목록")
+@router.get(
+    "/performance/top-performers",
+    summary="최고 성과 신호 목록",
+    description="가장 높은 성과를 보인 신호들을 조회합니다.",
+    tags=["Outcome Analysis"],
+)
 async def get_top_performers(
     timeframe: str = Query(
         "1d", regex="^(1h|1d|1w)$", description="시간대 (1h, 1d, 1w)"
@@ -224,7 +257,12 @@ async def run_simple_backtesting(
 # =============================================================================
 
 
-@router.get("/monitoring/dashboard", summary="실시간 모니터링 대시보드 데이터")
+@router.get(
+    "/monitoring/dashboard",
+    summary="실시간 모니터링 대시보드",
+    description="실시간 신호 추적 및 성과 모니터링 대시보드 데이터를 제공합니다.",
+    tags=["Outcome Analysis"],
+)
 async def get_dashboard_data():
     """
     실시간 모니터링 대시보드에 필요한 데이터를 반환합니다.
@@ -245,7 +283,12 @@ async def get_dashboard_data():
 # =============================================================================
 
 
-@router.post("/tracking/update", summary="결과 추적 수동 업데이트")
+@router.post(
+    "/tracking/update",
+    summary="결과 추적 수동 업데이트",
+    description="결과 추적 시스템을 수동으로 업데이트합니다.",
+    tags=["Outcome Analysis"],
+)
 async def manual_update_tracking(
     batch_size: int = Query(10, ge=1, le=100, description="한 번에 처리할 결과 수")
 ):

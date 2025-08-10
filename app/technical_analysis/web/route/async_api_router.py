@@ -4,7 +4,7 @@
 FastAPI의 비동기 기능을 활용한 고성능 API 엔드포인트
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -12,6 +12,8 @@ from app.common.utils.async_api_client import AsyncApiClient
 from app.common.utils.async_executor import async_timed
 from app.common.utils.cache_manager import default_cache_manager
 from app.common.utils.performance_monitor import measure_time
+from app.technical_analysis.dto.async_response import AsyncPriceResponse
+from app.common.config.api_metadata import common_responses
 
 # 라우터 생성
 router = APIRouter()
@@ -20,9 +22,37 @@ router = APIRouter()
 yahoo_client = AsyncApiClient()
 
 
-@router.get("/async/symbols/{symbol}/price")
+@router.get(
+    "/async/symbols/{symbol}/price",
+    response_model=AsyncPriceResponse,
+    summary="비동기 심볼 가격 조회",
+    description="""
+    지정된 심볼의 가격 정보를 비동기로 빠르게 조회합니다.
+    
+    **주요 기능:**
+    - 고성능 비동기 처리
+    - 실시간 가격 데이터
+    - 시가총액 및 거래량 정보
+    - 가격 변동률 계산
+    
+    **성능 최적화:**
+    - 메모리 모니터링
+    - 실행 시간 측정
+    - 캐싱 활용
+    """,
+    tags=["Async API"],
+    responses={
+        **common_responses,
+        200: {
+            "description": "가격 정보를 성공적으로 조회했습니다.",
+            "model": AsyncPriceResponse,
+        },
+    },
+)
 @async_timed()
-async def get_symbol_price(symbol: str):
+async def get_symbol_price(
+    symbol: str = Path(..., example="AAPL", description="조회할 주식 심볼")
+) -> AsyncPriceResponse:
     """
     심볼의 현재 가격 조회 (비동기)
 

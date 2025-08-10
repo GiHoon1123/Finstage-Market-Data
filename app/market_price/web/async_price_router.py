@@ -4,11 +4,18 @@
 가격 데이터 조회 및 모니터링을 위한 최적화된 비동기 엔드포인트들
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from app.market_price.service.async_price_service import AsyncPriceService
+from app.market_price.dto.price_response import (
+    CurrentPriceResponse,
+    BatchPriceResponse,
+    PriceHistoryResponse,
+    BackgroundTaskResponse,
+)
+from app.common.config.api_metadata import common_responses
 from app.market_price.service.price_monitor_service import PriceMonitorService
 from app.market_price.service.price_snapshot_service import PriceSnapshotService
 from app.market_price.service.price_high_record_service import PriceHighRecordService
@@ -32,21 +39,57 @@ snapshot_service = PriceSnapshotService()
 high_record_service = PriceHighRecordService()
 
 
-@router.get("/current/{symbol}", summary="현재 가격 조회")
+@router.get(
+    "/current/{symbol}",
+    response_model=CurrentPriceResponse,
+    summary="실시간 주식 가격 조회",
+    description="""
+    지정된 심볼의 현재 주식 가격을 실시간으로 조회합니다.
+    
+    **주요 기능:**
+    - 실시간 가격 데이터 제공
+    - 비동기 처리로 빠른 응답
+    - 선택적 상세 정보 포함
+    - 캐싱을 통한 성능 최적화
+    
+    **상세 정보 포함 시:**
+    - 가격 요약 (고가, 저가 등)
+    - 스냅샷 요약 (거래량 등)
+    - 최고가 기록 정보
+    
+    **사용 사례:**
+    - 실시간 주식 모니터링
+    - 포트폴리오 가격 추적
+    - 거래 의사결정 지원
+    """,
+    tags=["Market Data"],
+    responses={
+        **common_responses,
+        200: {
+            "description": "현재 가격을 성공적으로 조회했습니다.",
+            "model": CurrentPriceResponse,
+        },
+    },
+)
 @async_timed()
 @memory_monitor
 async def get_current_price_async(
-    symbol: str, include_details: bool = Query(False, description="상세 정보 포함 여부")
-) -> Dict[str, Any]:
+    symbol: str = Path(
+        ...,
+        example="AAPL",
+        description="조회할 주식 심볼 (예: AAPL, MSFT, GOOGL)",
+        min_length=1,
+        max_length=10,
+    ),
+    include_details: bool = Query(
+        False, description="상세 정보 포함 여부 (가격 요약, 스냅샷, 최고가 기록)"
+    ),
+) -> CurrentPriceResponse:
     """
-    단일 심볼의 현재 가격을 비동기로 조회합니다.
+    지정된 심볼의 실시간 주식 가격을 조회합니다.
 
-    Args:
-        symbol: 조회할 심볼
-        include_details: 상세 정보 포함 여부
-
-    Returns:
-        현재 가격 정보
+    고성능 비동기 처리를 통해 빠른 응답을 제공하며,
+    선택적으로 상세한 가격 분석 정보를 포함할 수 있습니다.
     """
     try:
         logger.info("current_price_query_started", symbol=symbol)
@@ -60,26 +103,27 @@ async def get_current_price_async(
                 detail=f"심볼 {symbol}의 가격 데이터를 찾을 수 없습니다",
             )
 
-        result = {
-            "symbol": symbol,
-            "current_price": current_price,
-            "timestamp": datetime.now().isoformat(),
-        }
-
+        details = None
         if include_details:
             # 상세 정보 추가 (캐싱된 데이터 활용)
             price_summary = monitor_service.get_price_summary(symbol)
             snapshot_summary = snapshot_service.get_snapshot_summary(symbol)
             high_record_summary = high_record_service.get_high_record_summary(symbol)
 
-            result["details"] = {
+            details = {
                 "price_summary": price_summary,
                 "snapshot_summary": snapshot_summary,
                 "high_record_summary": high_record_summary,
             }
 
         logger.info("current_price_query_completed", symbol=symbol, price=current_price)
-        return result
+
+        return CurrentPriceResponse(
+            symbol=symbol,
+            current_price=current_price,
+            timestamp=datetime.now().isoformat(),
+            details=details,
+        )
 
     except Exception as e:
         logger.error("current_price_query_failed", symbol=symbol, error=str(e))

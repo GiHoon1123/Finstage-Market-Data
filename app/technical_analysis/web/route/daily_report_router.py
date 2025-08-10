@@ -9,12 +9,41 @@ from typing import Dict, Any
 from app.technical_analysis.service.daily_comprehensive_report_service import (
     DailyComprehensiveReportService,
 )
+from app.technical_analysis.dto.report_response import DailyReportResponse
+from app.common.config.api_metadata import common_responses
 
 router = APIRouter()
 
 
-@router.post("/generate", summary="일일 종합 분석 리포트 생성")
-async def generate_daily_report() -> Dict[str, Any]:
+@router.post(
+    "/generate",
+    response_model=DailyReportResponse,
+    summary="일일 종합 분석 리포트 생성",
+    description="""
+    당일의 모든 기술적 분석 데이터를 종합하여 일일 리포트를 생성합니다.
+    
+    **포함 내용:**
+    - 시장 전체 요약
+    - 발생한 신호들 분석
+    - 성과 지표 계산
+    - 투자 추천 사항
+    - 위험 요소 분석
+    
+    **활용 방안:**
+    - 일일 투자 브리핑
+    - 포트폴리오 점검
+    - 시장 동향 파악
+    """,
+    tags=["Daily Report"],
+    responses={
+        **common_responses,
+        201: {
+            "description": "일일 리포트가 성공적으로 생성되었습니다.",
+            "model": DailyReportResponse,
+        },
+    },
+)
+async def generate_daily_report() -> DailyReportResponse:
     """
     일일 종합 분석 리포트를 수동으로 생성하고 텔레그램으로 전송합니다.
 
@@ -38,8 +67,21 @@ async def generate_daily_report() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
 
 
-@router.get("/preview", summary="일일 종합 분석 리포트 미리보기")
-async def preview_daily_report() -> Dict[str, Any]:
+@router.get(
+    "/preview",
+    response_model=DailyReportResponse,
+    summary="일일 리포트 미리보기",
+    description="""
+    실제 생성하지 않고 일일 리포트의 미리보기를 제공합니다.
+    
+    **주요 기능:**
+    - 빠른 데이터 요약
+    - 리소스 절약형 미리보기
+    - 실시간 시장 상황 반영
+    """,
+    tags=["Daily Report"],
+)
+async def preview_daily_report() -> DailyReportResponse:
     """
     일일 종합 분석 리포트의 미리보기를 생성합니다 (텔레그램 전송 없음).
 
@@ -87,7 +129,12 @@ async def preview_daily_report() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"미리보기 생성 실패: {str(e)}")
 
 
-@router.get("/status", summary="일일 리포트 시스템 상태 확인")
+@router.get(
+    "/status",
+    summary="리포트 시스템 상태",
+    description="일일 리포트 생성 시스템의 상태를 확인합니다.",
+    tags=["Daily Report"],
+)
 async def get_report_status() -> Dict[str, Any]:
     """
     일일 종합 분석 리포트 시스템의 상태를 확인합니다.
@@ -135,7 +182,12 @@ async def get_report_status() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"상태 확인 실패: {str(e)}")
 
 
-@router.get("/health", summary="헬스 체크")
+@router.get(
+    "/health",
+    summary="리포트 서비스 헬스 체크",
+    description="일일 리포트 서비스의 상태를 확인합니다.",
+    tags=["Health Check"],
+)
 async def health_check():
     """일일 리포트 서비스 헬스 체크"""
     return {

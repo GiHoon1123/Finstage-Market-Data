@@ -98,19 +98,65 @@ from app.market_price.service.realtime_price_streamer import (
     realtime_price_streamer,
 )
 
+from app.common.config.api_metadata import tags_metadata
+
 app = FastAPI(
     title="Finstage Market Data API",
     version=settings.version,
-    description="주가 및 재무데이터 수집/제공 서비스",
+    description="""
+    ## 🚀 Finstage Market Data API
+    
+    금융 시장 데이터 수집, 분석 및 예측을 위한 종합 API 서비스입니다.
+    
+    ### 📊 주요 기능
+    * **기업 정보**: 심볼 조회, 재무제표 분석
+    * **시장 데이터**: 실시간 주가, 차트 데이터
+    * **기술적 분석**: 각종 지표 계산 및 신호 생성
+    * **패턴 분석**: 차트 패턴 인식 및 성과 분석
+    * **ML 예측**: 머신러닝 기반 가격 예측 및 백테스팅
+    * **뉴스 크롤링**: 시장 관련 뉴스 수집 및 분석
+    * **알림 시스템**: 텔레그램, 이메일 알림 서비스
+    
+    ### 🔑 인증
+    일부 API는 인증이 필요할 수 있습니다. 헤더에 `X-API-Key`를 포함해주세요.
+    
+    ### 📝 사용 예시
+    ```python
+    import requests
+    
+    # 심볼 목록 조회
+    response = requests.get("http://localhost:8000/api/symbols/symbols?page=1&size=10")
+    
+    # 재무제표 조회
+    response = requests.get("http://localhost:8000/api/financials/financials/AAPL")
+    ```
+    
+    ### 🌐 환경
+    - **개발 서버**: http://localhost:8000
+    - **운영 서버**: https://api.finstage.com
+    """,
     debug=settings.debug,
+    openapi_tags=tags_metadata,
+    contact={
+        "name": "Finstage Development Team",
+        "email": "dev@finstage.com",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    servers=[
+        {"url": "http://localhost:8000", "description": "개발 서버"},
+        {"url": "https://api.finstage.com", "description": "운영 서버"},
+    ],
 )
 
 # 모니터링 미들웨어 추가
 app.middleware("http")(metrics_middleware)
 
 # 라우터 등록
-app.include_router(financial_router, prefix="/api/financials", tags=["Financial"])
-app.include_router(symbol_router, prefix="/api/symbols", tags=["Symbol"])
+app.include_router(financial_router, prefix="/api/financials")
+app.include_router(symbol_router, prefix="/api/symbols")
 app.include_router(news_test_router, prefix="/test/news", tags=["Test News Crawler"])
 app.include_router(message_router, prefix="/api/messages", tags=["Messages"])
 app.include_router(

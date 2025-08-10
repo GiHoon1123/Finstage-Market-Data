@@ -11,6 +11,11 @@ from app.technical_analysis.infra.model.repository.technical_signal_repository i
     TechnicalSignalRepository,
 )
 from app.common.infra.database.config.database_config import SessionLocal
+from app.technical_analysis.dto.utility_response import (
+    ServiceHealthResponse,
+    SignalTypesResponse,
+)
+from app.common.config.api_metadata import common_responses
 
 # 라우터 생성
 router = APIRouter()
@@ -21,8 +26,34 @@ router = APIRouter()
 # =============================================================================
 
 
-@router.get("/health", summary="서비스 상태 확인")
-async def health_check() -> Dict[str, Any]:
+@router.get(
+    "/health",
+    response_model=ServiceHealthResponse,
+    summary="기술적 분석 서비스 상태 확인",
+    description="""
+    기술적 분석 서비스의 전반적인 상태를 확인합니다.
+    
+    **확인 항목:**
+    - 서비스 가동 상태
+    - 의존성 서비스 연결 상태
+    - 성능 지표
+    - 시스템 리소스 사용량
+    
+    **모니터링 용도:**
+    - 서비스 헬스 체크
+    - 장애 감지
+    - 성능 모니터링
+    """,
+    tags=["Health Check"],
+    responses={
+        **common_responses,
+        200: {
+            "description": "서비스 상태를 성공적으로 조회했습니다.",
+            "model": ServiceHealthResponse,
+        },
+    },
+)
+async def health_check() -> ServiceHealthResponse:
     """
     기술적 분석 서비스의 상태를 확인합니다.
 
@@ -53,8 +84,22 @@ async def health_check() -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail=f"서비스 상태 불량: {str(e)}")
 
 
-@router.get("/signal-types", summary="지원하는 신호 타입 목록")
-async def get_supported_signal_types() -> Dict[str, Any]:
+@router.get(
+    "/signal-types",
+    response_model=SignalTypesResponse,
+    summary="지원하는 신호 타입 목록",
+    description="""
+    시스템에서 지원하는 모든 기술적 분석 신호 타입을 조회합니다.
+    
+    **카테고리별 분류:**
+    - 이동평균선 신호
+    - 모멘텀 지표 신호  
+    - 트렌드 지표 신호
+    - 볼륨 지표 신호
+    """,
+    tags=["Utility"],
+)
+async def get_supported_signal_types() -> SignalTypesResponse:
     """
     현재 지원하는 모든 신호 타입의 목록과 설명을 제공합니다.
 

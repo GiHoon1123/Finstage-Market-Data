@@ -13,6 +13,11 @@ import asyncio
 from app.technical_analysis.handler.recovery_handler import RecoveryHandler
 from app.technical_analysis.service.recovery_service import RecoveryService
 from app.common.utils.logging_config import get_logger
+from app.technical_analysis.dto.recovery_response import (
+    RecoveryTaskResponse,
+    RecoveryStatusResponse,
+)
+from app.common.config.api_metadata import common_responses
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -22,7 +27,20 @@ recovery_handler = RecoveryHandler()
 recovery_service = RecoveryService()
 
 
-@router.post("/historical-data", summary="10년치 과거 데이터 복구")
+@router.post(
+    "/historical-data",
+    response_model=RecoveryTaskResponse,
+    summary="과거 데이터 복구",
+    description="""
+    10년치 과거 주가 데이터를 복구합니다.
+    
+    **복구 범위:**
+    - 일봉, 주봉, 월봉 데이터
+    - 거래량 및 시가총액
+    - 배당 및 분할 정보
+    """,
+    tags=["Data Recovery"],
+)
 async def recover_historical_data(
     background_tasks: BackgroundTasks,
     symbols: Optional[str] = Query(
@@ -87,7 +105,13 @@ async def recover_historical_data(
         raise HTTPException(status_code=500, detail=f"과거 데이터 복구 실패: {str(e)}")
 
 
-@router.post("/technical-analysis", summary="전체 기술적 분석 복구")
+@router.post(
+    "/technical-analysis",
+    response_model=RecoveryTaskResponse,
+    summary="기술적 분석 데이터 복구",
+    description="모든 기술적 분석 지표와 신호를 재계산하여 복구합니다.",
+    tags=["Data Recovery"],
+)
 async def recover_technical_analysis(
     background_tasks: BackgroundTasks,
     symbols: Optional[str] = Query("^IXIC,^GSPC", description="분석할 심볼들"),
@@ -161,7 +185,13 @@ async def recover_technical_analysis(
         raise HTTPException(status_code=500, detail=f"기술적 분석 복구 실패: {str(e)}")
 
 
-@router.post("/full-recovery", summary="전체 복구 (데이터 + 분석)")
+@router.post(
+    "/full-recovery",
+    response_model=RecoveryTaskResponse,
+    summary="전체 시스템 복구",
+    description="과거 데이터와 기술적 분석을 모두 복구하는 완전 복구 작업입니다.",
+    tags=["Data Recovery"],
+)
 async def full_recovery(
     background_tasks: BackgroundTasks,
     symbols: Optional[str] = Query("^IXIC,^GSPC", description="복구할 심볼들"),
@@ -210,8 +240,14 @@ async def full_recovery(
         raise HTTPException(status_code=500, detail=f"전체 복구 실패: {str(e)}")
 
 
-@router.get("/status", summary="복구 작업 상태 확인")
-async def get_recovery_status() -> Dict[str, Any]:
+@router.get(
+    "/status",
+    response_model=RecoveryStatusResponse,
+    summary="복구 작업 상태 확인",
+    description="현재 진행 중인 복구 작업들의 상태를 확인합니다.",
+    tags=["Data Recovery"],
+)
+async def get_recovery_status() -> RecoveryStatusResponse:
     """
     현재 복구 작업의 상태를 확인합니다.
 
