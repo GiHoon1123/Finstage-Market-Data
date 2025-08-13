@@ -39,26 +39,52 @@ class TradingStrategy(str, Enum):
 
 
 class TrainModelRequest(BaseModel):
-    """모델 훈련 요청"""
+    """모델 훈련 요청
+    
+    ML 모델을 훈련하기 위한 요청 모델입니다.
+    기존 모델이 있는 경우 force_retrain 옵션으로 재훈련할 수 있습니다.
+    """
 
     symbol: str = Field(
-        ..., description="주식 심볼 (예: ^GSPC, ^IXIC)", example="^GSPC"
+        ..., 
+        description="주식 심볼 (예: ^GSPC, ^IXIC, AAPL, MSFT)",
+        example="^GSPC",
+        min_length=1,
+        max_length=10
     )
 
     training_days: int = Field(
-        default=1000, ge=100, le=5000, description="훈련 데이터 일수 (100-5000일)"
+        default=1000, 
+        ge=100, 
+        le=5000, 
+        description="훈련에 사용할 과거 데이터 일수 (100-5000일). 더 많은 데이터는 더 정확한 모델을 만들지만 훈련 시간이 오래 걸립니다.",
+        example=1000
     )
 
     validation_split: float = Field(
-        default=0.2, ge=0.1, le=0.4, description="검증 데이터 비율 (0.1-0.4)"
+        default=0.2, 
+        ge=0.1, 
+        le=0.4, 
+        description="검증 데이터 비율 (0.1-0.4). 훈련 데이터의 일정 비율을 검증용으로 분리하여 모델 성능을 평가합니다.",
+        example=0.2
     )
 
     force_retrain: bool = Field(
-        default=False, description="기존 모델이 있어도 강제로 재훈련할지 여부"
+        default=False, 
+        description="기존 모델이 있어도 강제로 재훈련할지 여부. false면 기존 모델이 있으면 스킵하고, true면 새로 훈련합니다.",
+        example=False
     )
 
     hyperparameters: Optional[Dict[str, Any]] = Field(
-        default=None, description="사용자 정의 하이퍼파라미터"
+        default=None, 
+        description="사용자 정의 하이퍼파라미터 (선택사항). 기본값을 사용하지 않고 직접 설정하고 싶을 때 사용합니다.",
+        example={
+            "learning_rate": 0.001,
+            "batch_size": 32,
+            "epochs": 100,
+            "lstm_units": [50, 50],
+            "dropout_rate": 0.2
+        }
     )
 
     @validator("symbol")
@@ -69,24 +95,42 @@ class TrainModelRequest(BaseModel):
 
 
 class PredictionRequest(BaseModel):
-    """예측 요청"""
+    """예측 요청
+    
+    훈련된 ML 모델을 사용하여 주식 가격을 예측하는 요청 모델입니다.
+    여러 타임프레임(7일, 14일, 30일)에 대한 예측을 동시에 수행할 수 있습니다.
+    """
 
-    symbol: str = Field(..., description="주식 심볼", example="^GSPC")
+    symbol: str = Field(
+        ..., 
+        description="주식 심볼 (예: ^GSPC, ^IXIC, AAPL, MSFT)",
+        example="^GSPC",
+        min_length=1,
+        max_length=10
+    )
 
     prediction_date: Optional[date] = Field(
-        default=None, description="예측 기준 날짜 (기본값: 오늘)"
+        default=None, 
+        description="예측 기준 날짜 (기본값: 오늘). 이 날짜를 기준으로 미래 가격을 예측합니다.",
+        example="2025-08-13"
     )
 
     timeframes: Optional[List[PredictionTimeframe]] = Field(
-        default=None, description="예측할 타임프레임들 (기본값: 전체)"
+        default=None, 
+        description="예측할 타임프레임들 (기본값: 전체). 7일, 14일, 30일 중 원하는 기간을 선택할 수 있습니다.",
+        example=["7d", "14d", "30d"]
     )
 
     model_version: Optional[str] = Field(
-        default=None, description="사용할 모델 버전 (기본값: 활성 모델)"
+        default=None, 
+        description="사용할 모델 버전 (기본값: 활성 모델). null이면 현재 활성화된 모델을 사용하고, 특정 버전을 지정하면 해당 모델을 사용합니다.",
+        example=None
     )
 
     save_results: bool = Field(
-        default=True, description="예측 결과를 데이터베이스에 저장할지 여부"
+        default=True, 
+        description="예측 결과를 데이터베이스에 저장할지 여부. true면 나중에 결과를 조회할 수 있고, false면 메모리에서만 처리합니다.",
+        example=True
     )
 
     @validator("symbol")
@@ -103,24 +147,44 @@ class PredictionRequest(BaseModel):
 
 
 class EvaluationRequest(BaseModel):
-    """모델 평가 요청"""
+    """모델 평가 요청
+    
+    훈련된 ML 모델의 성능을 평가하는 요청 모델입니다.
+    과거 데이터를 사용하여 모델의 예측 정확도와 성능 지표를 계산합니다.
+    """
 
-    symbol: str = Field(..., description="주식 심볼", example="^GSPC")
+    symbol: str = Field(
+        ..., 
+        description="주식 심볼 (예: ^GSPC, ^IXIC, AAPL, MSFT)",
+        example="^GSPC",
+        min_length=1,
+        max_length=10
+    )
 
     model_version: Optional[str] = Field(
-        default=None, description="평가할 모델 버전 (기본값: 활성 모델)"
+        default=None, 
+        description="평가할 모델 버전 (기본값: 활성 모델). null이면 현재 활성화된 모델을 평가합니다.",
+        example=None
     )
 
     evaluation_days: int = Field(
-        default=90, ge=7, le=365, description="평가 기간 (7-365일)"
+        default=90, 
+        ge=7, 
+        le=365, 
+        description="평가 기간 (7-365일). 최근 N일간의 데이터를 사용하여 모델 성능을 평가합니다.",
+        example=90
     )
 
     include_visualizations: bool = Field(
-        default=False, description="시각화 차트 포함 여부"
+        default=False, 
+        description="시각화 차트 포함 여부. true면 성능 차트와 그래프를 포함한 상세한 평가 결과를 제공합니다.",
+        example=False
     )
 
     timeframes: Optional[List[PredictionTimeframe]] = Field(
-        default=None, description="평가할 타임프레임들 (기본값: 전체)"
+        default=None, 
+        description="평가할 타임프레임들 (기본값: 전체). 7일, 14일, 30일 중 특정 기간만 평가할 수 있습니다.",
+        example=["7d", "14d", "30d"]
     )
 
     @validator("symbol")
@@ -131,37 +195,74 @@ class EvaluationRequest(BaseModel):
 
 
 class BacktestRequest(BaseModel):
-    """백테스트 요청"""
+    """백테스트 요청
+    
+    훈련된 ML 모델을 사용하여 과거 데이터로 거래 시뮬레이션을 수행하는 요청 모델입니다.
+    실제 거래 환경과 유사한 조건에서 모델의 수익성을 평가할 수 있습니다.
+    """
 
-    symbol: str = Field(..., description="주식 심볼", example="^GSPC")
+    symbol: str = Field(
+        ..., 
+        description="주식 심볼 (예: ^GSPC, ^IXIC, AAPL, MSFT)",
+        example="^GSPC",
+        min_length=1,
+        max_length=10
+    )
 
-    model_version: str = Field(..., description="백테스트할 모델 버전")
+    model_version: str = Field(
+        ..., 
+        description="백테스트할 모델 버전. 특정 버전의 모델을 사용하여 백테스트를 수행합니다.",
+        example="v1.0.0_20250813_110520"
+    )
 
-    start_date: date = Field(..., description="백테스트 시작 날짜")
+    start_date: date = Field(
+        ..., 
+        description="백테스트 시작 날짜. 이 날짜부터 거래 시뮬레이션을 시작합니다.",
+        example="2025-01-01"
+    )
 
-    end_date: date = Field(..., description="백테스트 종료 날짜")
+    end_date: date = Field(
+        ..., 
+        description="백테스트 종료 날짜. 이 날짜까지 거래 시뮬레이션을 수행합니다.",
+        example="2025-08-13"
+    )
 
     strategy: TradingStrategy = Field(
-        default=TradingStrategy.DIRECTION_BASED, description="거래 전략"
+        default=TradingStrategy.DIRECTION_BASED, 
+        description="거래 전략. direction_based는 예측 방향에 따라 거래하고, momentum_based는 모멘텀을 활용합니다.",
+        example="direction_based"
     )
 
     initial_capital: float = Field(
         default=100000.0,
         ge=1000.0,
         le=10000000.0,
-        description="초기 자본 (1,000 - 10,000,000)",
+        description="초기 자본 (1,000 - 10,000,000). 백테스트 시작 시 보유할 초기 자금입니다.",
+        example=100000.0
     )
 
     position_size: float = Field(
-        default=0.1, ge=0.01, le=1.0, description="포지션 크기 비율 (0.01-1.0)"
+        default=0.1, 
+        ge=0.01, 
+        le=1.0, 
+        description="포지션 크기 비율 (0.01-1.0). 각 거래에서 사용할 자본의 비율입니다.",
+        example=0.1
     )
 
     transaction_cost: float = Field(
-        default=0.001, ge=0.0, le=0.01, description="거래 비용 비율 (0.0-0.01)"
+        default=0.001, 
+        ge=0.0, 
+        le=0.01, 
+        description="거래 비용 비율 (0.0-0.01). 매수/매도 시 발생하는 수수료나 슬리피지를 반영합니다.",
+        example=0.001
     )
 
     confidence_threshold: float = Field(
-        default=0.6, ge=0.5, le=1.0, description="거래 실행 최소 신뢰도 (0.5-1.0)"
+        default=0.6, 
+        ge=0.5, 
+        le=1.0, 
+        description="거래 실행 최소 신뢰도 (0.5-1.0). 이 값 이상의 신뢰도를 가진 예측만 거래에 사용합니다.",
+        example=0.6
     )
 
     @validator("symbol")

@@ -71,30 +71,81 @@ def get_ml_handler() -> MLPredictionHandler:
     "/train",
     response_model=ApiResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="모델 훈련",
-    description="새로운 LSTM 모델을 훈련합니다. 기존 모델이 있는 경우 force_retrain=true로 강제 재훈련할 수 있습니다.",
+    summary="ML 모델 훈련",
+    description="""
+    새로운 LSTM 모델을 훈련합니다.
+    
+    **주요 기능:**
+    - 지정된 심볼의 과거 데이터를 사용하여 LSTM 모델 훈련
+    - 기존 모델이 있는 경우 force_retrain 옵션으로 재훈련 가능
+    - 하이퍼파라미터 커스터마이징 지원
+    - 훈련 진행 상황 실시간 모니터링
+    
+    **사용 예시:**
+    ```json
+    {
+      "symbol": "^GSPC",
+      "training_days": 1000,
+      "validation_split": 0.2,
+      "force_retrain": false,
+      "hyperparameters": {
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 100
+      }
+    }
+    ```
+    """,
     responses={
         201: {
             "description": "모델 훈련 성공",
             "content": {
                 "application/json": {
                     "example": {
-                        "status": 200,
+                        "status": 201,
                         "message": "^GSPC 모델 훈련이 성공적으로 시작되었습니다",
                         "data": {
-                            "task_id": "train_20250813_133000",
+                            "status": "success",
+                            "message": "Model training completed successfully",
+                            "timestamp": "2025-08-13T13:30:00Z",
                             "symbol": "^GSPC",
-                            "training_days": 1000,
-                            "validation_split": 0.2,
-                            "model_version": "v1.0.0",
-                            "estimated_duration": "30분",
-                            "status": "training_started"
+                            "model_version": "v1.0.0_20250813_133000",
+                            "training_metrics": {
+                                "final_loss": 0.0023,
+                                "final_mae": 0.0156,
+                                "training_time_minutes": 25
+                            },
+                            "model_info": {
+                                "model_name": "GSPC_lstm",
+                                "model_type": "lstm",
+                                "is_active": True,
+                                "training_date": "2025-08-13T13:30:00Z"
+                            }
                         }
                     }
                 }
             },
         },
-        409: {"description": "모델이 이미 존재함"},
+        409: {
+            "description": "모델이 이미 존재함",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 409,
+                        "message": "모델이 이미 존재합니다",
+                        "data": {
+                            "status": "skipped",
+                            "message": "Model already exists",
+                            "existing_model": {
+                                "model_version": "v1.0.0_20250813_110520",
+                                "is_active": True,
+                                "training_date": "2025-08-13T11:05:28Z"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         500: {"description": "훈련 실패"},
         503: {"description": "서비스 사용 불가"},
     },
@@ -132,8 +183,31 @@ async def train_model(
     "/predict",
     response_model=ApiResponse,
     status_code=status.HTTP_200_OK,
-    summary="가격 예측",
-    description="지정된 심볼의 7일, 14일, 30일 후 가격을 예측합니다.",
+    summary="주식 가격 예측",
+    description="""
+    훈련된 ML 모델을 사용하여 주식 가격을 예측합니다.
+    
+    **주요 기능:**
+    - 7일, 14일, 30일 후 가격 예측
+    - 예측 신뢰도 점수 제공
+    - 여러 타임프레임 동시 예측
+    - 특정 모델 버전 선택 가능
+    
+    **사용 예시:**
+    ```json
+    {
+      "symbol": "^GSPC",
+      "prediction_date": "2025-08-13",
+      "timeframes": ["7d", "14d", "30d"],
+      "model_version": null,
+      "save_results": True
+    }
+    ```
+    
+    **주의사항:**
+    - model_version이 null이면 현재 활성 모델 사용
+    - model_version이 "string"이면 오류 발생 (null 또는 실제 버전명 사용)
+    """,
     responses={
         200: {
             "description": "예측 성공",
@@ -143,19 +217,50 @@ async def train_model(
                         "status": 200,
                         "message": "^GSPC 가격 예측이 완료되었습니다",
                         "data": {
+                            "status": "success",
+                            "message": "Prediction completed successfully",
+                            "timestamp": "2025-08-13T13:30:00Z",
                             "symbol": "^GSPC",
-                            "predictions": {
-                                "7d": 4850.25,
-                                "14d": 4875.50,
-                                "30d": 4920.75
+                            "prediction_date": "2025-08-13",
+                            "model_info": {
+                                "model_id": 10,
+                                "model_name": "GSPC_lstm",
+                                "model_version": "v1.0.0_20250813_110520",
+                                "model_type": "lstm",
+                                "symbol": "^GSPC",
+                                "is_active": True,
+                                "training_date": "2025-08-13T11:05:28Z"
                             },
-                            "confidence_scores": {
-                                "7d": 0.85,
-                                "14d": 0.78,
-                                "30d": 0.72
-                            },
-                            "model_version": "v1.0.0",
-                            "prediction_date": "2025-08-13T13:30:00Z"
+                            "predictions": [
+                                {
+                                    "timeframe": "7d",
+                                    "target_date": "2025-08-20",
+                                    "predicted_price": 6230.61,
+                                    "current_price": 6340.0,
+                                    "price_change_percent": -1.73,
+                                    "predicted_direction": "down",
+                                    "confidence_score": 0.9
+                                },
+                                {
+                                    "timeframe": "14d",
+                                    "target_date": "2025-08-27",
+                                    "predicted_price": 6269.28,
+                                    "current_price": 6340.0,
+                                    "price_change_percent": -1.12,
+                                    "predicted_direction": "down",
+                                    "confidence_score": 0.9
+                                },
+                                {
+                                    "timeframe": "30d",
+                                    "target_date": "2025-09-12",
+                                    "predicted_price": 6249.46,
+                                    "current_price": 6340.0,
+                                    "price_change_percent": -1.43,
+                                    "predicted_direction": "down",
+                                    "confidence_score": 0.9
+                                }
+                            ],
+                            "batch_id": "68aaa6bd-7395-4079-b69b-058ee4910fbf"
                         }
                     }
                 }

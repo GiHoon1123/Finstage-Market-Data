@@ -1,6 +1,6 @@
-# ENV_MODE=dev uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
-# ENV_MODE=test uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
-# ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8081
+# ENV_MODE=dev uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+# ENV_MODE=test uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+# ENV_MODE=prod uvicorn app.main:app --host 0.0.0.0 --port 8080
 
 import os
 import asyncio
