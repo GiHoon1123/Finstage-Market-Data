@@ -8,7 +8,7 @@
 import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi import APIRouter, Query, Path
 
 from app.technical_analysis.service.technical_monitor_service import (
     TechnicalMonitorService,
@@ -18,6 +18,8 @@ from app.technical_analysis.dto.test_response import (
     EnvironmentCheckResponse,
 )
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import success_response, handle_service_error
 from app.common.utils.telegram_notifier import (
     send_ma_breakout_message,
     send_rsi_alert_message,
@@ -32,7 +34,7 @@ router = APIRouter()
 
 @router.post(
     "/telegram-alerts/all",
-    response_model=TestAlertResponse,
+    response_model=ApiResponse,
     summary="전체 텔레그램 알림 테스트",
     description="""
     모든 유형의 텔레그램 알림을 한 번에 테스트합니다.
@@ -68,14 +70,15 @@ async def test_all_alerts() -> TestAlertResponse:
         service = TechnicalMonitorService()
         service.test_all_technical_alerts()
 
-        return TestAlertResponse(
-            success=True,
-            message="모든 텔레그램 알림 테스트가 성공적으로 실행되었습니다.",
-            alert_type="ALL_ALERTS",
-            timestamp=datetime.utcnow().isoformat(),
+        return success_response(
+            data={
+                "alert_type": "ALL_ALERTS",
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+            message="모든 텔레그램 알림 테스트가 성공적으로 실행되었습니다",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
+        handle_service_error(e, "알림 테스트 실패")
 
 
 @router.post(
@@ -125,13 +128,17 @@ async def test_ma_breakout_alert(
             now=now,
         )
 
-        return {
-            "success": True,
-            "message": f"{symbol} {ma_period}일선 {direction} 돌파 알림 테스트가 성공적으로 실행되었습니다.",
-            "timestamp": now.isoformat(),
-        }
+        return success_response(
+            data={
+                "symbol": symbol,
+                "ma_period": ma_period,
+                "direction": direction,
+                "timestamp": now.isoformat(),
+            },
+            message=f"{symbol} {ma_period}일선 {direction} 돌파 알림 테스트가 성공적으로 실행되었습니다",
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
+        handle_service_error(e, "알림 테스트 실패")
 
 
 @router.post(
@@ -169,13 +176,17 @@ async def test_rsi_alert(
             now=now,
         )
 
-        return {
-            "success": True,
-            "message": f"{symbol} RSI {signal_type} 알림 테스트가 성공적으로 실행되었습니다.",
-            "timestamp": now.isoformat(),
-        }
+        return success_response(
+            data={
+                "symbol": symbol,
+                "signal_type": signal_type,
+                "current_rsi": current_rsi,
+                "timestamp": now.isoformat(),
+            },
+            message=f"{symbol} RSI {signal_type} 알림 테스트가 성공적으로 실행되었습니다",
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"알림 테스트 실패: {str(e)}")
+        handle_service_error(e, "알림 테스트 실패")
 
 
 @router.post(

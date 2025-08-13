@@ -18,6 +18,11 @@ from app.common.optimization.optimization_manager import (
 )
 from app.common.utils.logging_config import get_logger
 from app.common.utils.memory_optimizer import memory_monitor
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    handle_service_error,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v2/optimization", tags=["Optimization Manager"])
@@ -45,7 +50,7 @@ class OptimizationActionRequest(BaseModel):
 
 @router.get("/status", summary="최적화 상태 조회")
 @memory_monitor
-async def get_optimization_status() -> Dict[str, Any]:
+async def get_optimization_status() -> ApiResponse:
     """
     현재 최적화 시스템의 전체 상태를 조회합니다.
 
@@ -57,18 +62,21 @@ async def get_optimization_status() -> Dict[str, Any]:
         status = manager.get_optimization_status()
 
         if "error" in status:
-            raise HTTPException(status_code=500, detail=status["error"])
+            handle_service_error(Exception(status["error"]), "최적화 상태 조회 실패")
 
-        return status
+        return success_response(
+            data=status,
+            message="최적화 상태 조회 완료"
+        )
 
     except Exception as e:
         logger.error("optimization_status_api_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "최적화 상태 조회 실패")
 
 
 @router.get("/rules", summary="최적화 규칙 목록 조회")
 @memory_monitor
-async def get_optimization_rules() -> Dict[str, Any]:
+async def get_optimization_rules() -> ApiResponse:
     """
     등록된 최적화 규칙들을 조회합니다.
 
@@ -79,20 +87,25 @@ async def get_optimization_rules() -> Dict[str, Any]:
         manager = get_optimization_manager()
         status = manager.get_optimization_status()
 
-        return {
+        response_data = {
             "rules": status.get("rules", []),
             "total_count": status.get("total_rules", 0),
             "retrieved_at": datetime.now().isoformat(),
         }
 
+        return success_response(
+            data=response_data,
+            message=f"최적화 규칙 목록 조회 완료 ({status.get('total_rules', 0)}개 규칙)"
+        )
+
     except Exception as e:
         logger.error("optimization_rules_api_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "최적화 규칙 목록 조회 실패")
 
 
 @router.get("/rules/{rule_id}", summary="특정 최적화 규칙 조회")
 @memory_monitor
-async def get_optimization_rule(rule_id: str) -> Dict[str, Any]:
+async def get_optimization_rule(rule_id: str) -> ApiResponse:
     """
     특정 최적화 규칙의 상세 정보를 조회합니다.
 
@@ -106,13 +119,11 @@ async def get_optimization_rule(rule_id: str) -> Dict[str, Any]:
         manager = get_optimization_manager()
 
         if rule_id not in manager.optimization_rules:
-            raise HTTPException(
-                status_code=404, detail=f"Optimization rule not found: {rule_id}"
-            )
+            handle_service_error(Exception(f"Optimization rule not found: {rule_id}"), "최적화 규칙을 찾을 수 없습니다")
 
         rule = manager.optimization_rules[rule_id]
 
-        return {
+        rule_data = {
             "id": rule.id,
             "name": rule.name,
             "description": rule.description,
@@ -126,20 +137,23 @@ async def get_optimization_rule(rule_id: str) -> Dict[str, Any]:
             "rollback_condition": rule.rollback_condition,
         }
 
-    except HTTPException:
-        raise
+        return success_response(
+            data=rule_data,
+            message=f"최적화 규칙 '{rule.name}' 조회 완료"
+        )
+
     except Exception as e:
         logger.error(
             "optimization_rule_detail_api_failed", rule_id=rule_id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"최적화 규칙 '{rule_id}' 조회 실패")
 
 
 @router.post("/rules", summary="최적화 규칙 추가")
 @memory_monitor
 async def add_optimization_rule(
     rule_request: OptimizationRuleRequest,
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     새로운 최적화 규칙을 추가합니다.
 
@@ -192,25 +206,26 @@ async def add_optimization_rule(
         manager.optimization_rules[rule.id] = rule
         manager._save_configuration()
 
-        return {
-            "status": "success",
-            "message": "Optimization rule added successfully",
+        response_data = {
             "rule_id": rule_request.id,
             "added_at": datetime.now().isoformat(),
         }
 
-    except HTTPException:
-        raise
+        return success_response(
+            data=response_data,
+            message=f"최적화 규칙 '{rule_request.name}'이 성공적으로 추가되었습니다"
+        )
+
     except Exception as e:
         logger.error(
             "optimization_rule_add_failed", rule_id=rule_request.id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"최적화 규칙 '{rule_request.name}' 추가 실패")
 
 
 @router.delete("/rules/{rule_id}", summary="최적화 규칙 삭제")
 @memory_monitor
-async def remove_optimization_rule(rule_id: str) -> Dict[str, Any]:
+async def remove_optimization_rule(rule_id: str) -> ApiResponse:
     """
     최적화 규칙을 삭제합니다.
 
@@ -255,23 +270,24 @@ async def remove_optimization_rule(rule_id: str) -> Dict[str, Any]:
         del manager.optimization_rules[rule_id]
         manager._save_configuration()
 
-        return {
-            "status": "success",
-            "message": "Optimization rule removed successfully",
+        response_data = {
             "rule_id": rule_id,
             "removed_at": datetime.now().isoformat(),
         }
 
-    except HTTPException:
-        raise
+        return success_response(
+            data=response_data,
+            message=f"최적화 규칙 '{rule_id}'이 성공적으로 삭제되었습니다"
+        )
+
     except Exception as e:
         logger.error("optimization_rule_remove_failed", rule_id=rule_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"최적화 규칙 '{rule_id}' 삭제 실패")
 
 
 @router.post("/enable", summary="최적화 활성화")
 @memory_monitor
-async def enable_optimization(action: OptimizationActionRequest) -> Dict[str, Any]:
+async def enable_optimization(action: OptimizationActionRequest) -> ApiResponse:
     """
     최적화를 활성화합니다.
 
@@ -285,7 +301,7 @@ async def enable_optimization(action: OptimizationActionRequest) -> Dict[str, An
         manager = get_optimization_manager()
         result = manager.enable_optimization(action.rule_id, action.force)
 
-        return {
+        response_data = {
             "status": (
                 "success" if result.status == OptimizationStatus.ENABLED else "failed"
             ),
@@ -297,16 +313,21 @@ async def enable_optimization(action: OptimizationActionRequest) -> Dict[str, An
             "error_message": result.error_message,
         }
 
+        return success_response(
+            data=response_data,
+            message=f"최적화 규칙 '{action.rule_id}' 활성화 완료"
+        )
+
     except Exception as e:
         logger.error(
             "optimization_enable_api_failed", rule_id=action.rule_id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"최적화 규칙 '{action.rule_id}' 활성화 실패")
 
 
 @router.post("/disable", summary="최적화 비활성화")
 @memory_monitor
-async def disable_optimization(action: OptimizationActionRequest) -> Dict[str, Any]:
+async def disable_optimization(action: OptimizationActionRequest) -> ApiResponse:
     """
     최적화를 비활성화합니다.
 
@@ -320,7 +341,7 @@ async def disable_optimization(action: OptimizationActionRequest) -> Dict[str, A
         manager = get_optimization_manager()
         result = manager.disable_optimization(action.rule_id, action.reason)
 
-        return {
+        response_data = {
             "status": (
                 "success" if result.status == OptimizationStatus.DISABLED else "failed"
             ),
@@ -332,16 +353,21 @@ async def disable_optimization(action: OptimizationActionRequest) -> Dict[str, A
             "error_message": result.error_message,
         }
 
+        return success_response(
+            data=response_data,
+            message=f"최적화 규칙 '{action.rule_id}' 비활성화 완료"
+        )
+
     except Exception as e:
         logger.error(
             "optimization_disable_api_failed", rule_id=action.rule_id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"최적화 규칙 '{action.rule_id}' 비활성화 실패")
 
 
 @router.post("/baseline", summary="성능 기준선 설정")
 @memory_monitor
-async def set_performance_baseline() -> Dict[str, Any]:
+async def set_performance_baseline() -> ApiResponse:
     """
     현재 성능을 기준선으로 설정합니다.
 
@@ -353,27 +379,26 @@ async def set_performance_baseline() -> Dict[str, Any]:
         success = manager.set_performance_baseline()
 
         if success:
-            return {
-                "status": "success",
-                "message": "Performance baseline set successfully",
+            response_data = {
                 "baseline": manager.performance_baseline,
                 "set_at": datetime.now().isoformat(),
             }
-        else:
-            raise HTTPException(
-                status_code=500, detail="Failed to set performance baseline"
+            
+            return success_response(
+                data=response_data,
+                message="성능 기준선이 성공적으로 설정되었습니다"
             )
+        else:
+            handle_service_error(Exception("Failed to set performance baseline"), "성능 기준선 설정 실패")
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error("performance_baseline_api_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "성능 기준선 설정 실패")
 
 
 @router.get("/baseline", summary="성능 기준선 조회")
 @memory_monitor
-async def get_performance_baseline() -> Dict[str, Any]:
+async def get_performance_baseline() -> ApiResponse:
     """
     현재 설정된 성능 기준선을 조회합니다.
 
@@ -384,13 +409,18 @@ async def get_performance_baseline() -> Dict[str, Any]:
         manager = get_optimization_manager()
 
         if not manager.performance_baseline:
-            raise HTTPException(status_code=404, detail="Performance baseline not set")
+            handle_service_error(Exception("Performance baseline not set"), "성능 기준선이 설정되지 않았습니다")
 
-        return {
+        response_data = {
             "baseline": manager.performance_baseline,
             "is_set": True,
             "retrieved_at": datetime.now().isoformat(),
         }
+
+        return success_response(
+            data=response_data,
+            message="성능 기준선 조회 완료"
+        )
 
     except HTTPException:
         raise

@@ -4,7 +4,7 @@
 가격 데이터 조회 및 모니터링을 위한 최적화된 비동기 엔드포인트들
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Path
+from fastapi import APIRouter, Query, BackgroundTasks, Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
@@ -16,6 +16,12 @@ from app.market_price.dto.price_response import (
     BackgroundTaskResponse,
 )
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    not_found_response,
+    handle_service_error,
+)
 from app.market_price.service.price_monitor_service import PriceMonitorService
 from app.market_price.service.price_snapshot_service import PriceSnapshotService
 from app.market_price.service.price_high_record_service import PriceHighRecordService
@@ -41,7 +47,7 @@ high_record_service = PriceHighRecordService()
 
 @router.get(
     "/current/{symbol}",
-    response_model=CurrentPriceResponse,
+    response_model=ApiResponse,
     summary="실시간 주식 가격 조회",
     description="""
     지정된 심볼의 현재 주식 가격을 실시간으로 조회합니다.
@@ -84,7 +90,7 @@ async def get_current_price_async(
     include_details: bool = Query(
         False, description="상세 정보 포함 여부 (가격 요약, 스냅샷, 최고가 기록)"
     ),
-) -> CurrentPriceResponse:
+) -> ApiResponse:
     """
     지정된 심볼의 실시간 주식 가격을 조회합니다.
 
@@ -98,10 +104,7 @@ async def get_current_price_async(
             current_price = await price_service.fetch_price_async(symbol)
 
         if current_price is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"심볼 {symbol}의 가격 데이터를 찾을 수 없습니다",
-            )
+            not_found_response(f"심볼 {symbol}의 가격 데이터를 찾을 수 없습니다")
 
         details = None
         if include_details:
@@ -118,16 +121,21 @@ async def get_current_price_async(
 
         logger.info("current_price_query_completed", symbol=symbol, price=current_price)
 
-        return CurrentPriceResponse(
-            symbol=symbol,
-            current_price=current_price,
-            timestamp=datetime.now().isoformat(),
-            details=details,
+        response_data = {
+            "symbol": symbol,
+            "current_price": current_price,
+            "timestamp": datetime.now().isoformat(),
+            "details": details,
+        }
+
+        return success_response(
+            data=response_data,
+            message=f"{symbol} 현재 가격 조회가 완료되었습니다"
         )
 
     except Exception as e:
         logger.error("current_price_query_failed", symbol=symbol, error=str(e))
-        raise HTTPException(status_code=500, detail=f"가격 조회 실패: {str(e)}")
+        handle_service_error(e, f"{symbol} 가격 조회 실패")
 
 
 @router.post("/batch/current", summary="배치 현재 가격 조회")
@@ -136,7 +144,7 @@ async def get_current_price_async(
 async def get_batch_current_prices_async(
     symbols: List[str] = Query(..., description="조회할 심볼 리스트"),
     batch_size: int = Query(10, description="배치 크기"),
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     여러 심볼의 현재 가격을 배치로 비동기 조회합니다.
 
@@ -163,16 +171,21 @@ async def get_batch_current_prices_async(
             successful_count=successful_count,
         )
 
-        return {
+        response_data = {
             "total_symbols": len(symbols),
             "successful_count": successful_count,
             "results": results,
             "timestamp": datetime.now().isoformat(),
         }
 
+        return success_response(
+            data=response_data,
+            message=f"배치 가격 조회 완료 ({successful_count}/{len(symbols)} 성공)"
+        )
+
     except Exception as e:
         logger.error("batch_current_price_query_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"배치 가격 조회 실패: {str(e)}")
+        handle_service_error(e, "배치 가격 조회 실패")
 
 
 @router.get("/history/{symbol}", summary="가격 히스토리 조회")
@@ -182,7 +195,7 @@ async def get_price_history_async(
     symbol: str,
     period: str = Query("1mo", description="조회 기간"),
     interval: str = Query("1d", description="데이터 간격"),
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     심볼의 가격 히스토리를 비동기로 조회합니다.
 
@@ -203,10 +216,7 @@ async def get_price_history_async(
             )
 
         if not history or not history.get("timestamps"):
-            raise HTTPException(
-                status_code=404,
-                detail=f"심볼 {symbol}의 히스토리 데이터를 찾을 수 없습니다",
-            )
+            not_found_response(f"심볼 {symbol}의 히스토리 데이터를 찾을 수 없습니다")
 
         result = {
             "symbol": symbol,
@@ -222,11 +232,15 @@ async def get_price_history_async(
             symbol=symbol,
             data_points=len(history["timestamps"]),
         )
-        return result
+        
+        return success_response(
+            data=result,
+            message=f"{symbol} 가격 히스토리 조회 완료 ({len(history['timestamps'])}개 데이터 포인트)"
+        )
 
     except Exception as e:
         logger.error("price_history_query_failed", symbol=symbol, error=str(e))
-        raise HTTPException(
+        handle_service_error(e, f"{symbol} 가격 히스토리 조회 실패")
             status_code=500, detail=f"가격 히스토리 조회 실패: {str(e)}"
         )
 

@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Path, HTTPException
+from fastapi import APIRouter, Path
 from app.news_crawler.service.yahoo_news_crawler import YahooNewsCrawler
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import success_response, handle_service_error
 
 router = APIRouter()
 
 
 @router.post(
     "/{symbol}",
+    response_model=ApiResponse,
     summary="뉴스 크롤링 테스트",
     description="""
     특정 심볼에 대한 Yahoo Finance 뉴스를 크롤링하여 데이터베이스에 저장합니다.
@@ -29,10 +32,14 @@ router = APIRouter()
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "AAPL 뉴스 저장 완료",
-                        "crawled_count": 15,
-                        "saved_count": 12,
-                        "duplicate_count": 3,
+                        "status": 200,
+                        "message": "AAPL 뉴스 크롤링이 완료되었습니다",
+                        "data": {
+                            "symbol": "AAPL",
+                            "crawled_count": 15,
+                            "saved_count": 12,
+                            "duplicate_count": 3,
+                        },
                     }
                 }
             },
@@ -58,10 +65,9 @@ def crawl_and_save_news(
         crawler = YahooNewsCrawler(symbol)
         result = crawler.process_all()
 
-        return {
-            "message": f"{symbol} 뉴스 저장 완료",
-            "symbol": symbol,
-            "status": "success",
-        }
+        return success_response(
+            data={"symbol": symbol, "result": result},
+            message=f"{symbol} 뉴스 크롤링이 완료되었습니다",
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"뉴스 크롤링 실패: {str(e)}")
+        handle_service_error(e, f"{symbol} 뉴스 크롤링 실패")

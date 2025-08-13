@@ -15,23 +15,34 @@ from app.common.services.background_tasks import (
     get_task_progress,
 )
 from app.common.utils.logging_config import get_logger
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    not_found_response,
+    handle_service_error,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["Task Queue Management"])
 
 
 @router.get("/status", summary="작업 큐 시스템 상태")
-async def get_task_queue_status():
+async def get_task_queue_status() -> ApiResponse:
     """작업 큐 시스템의 전체 상태를 조회합니다."""
     try:
         stats = task_queue.get_stats()
-        return {
+        response_data = {
             "timestamp": datetime.now().isoformat(),
             "system_status": "running" if task_queue.is_running else "stopped",
             "queue_statistics": stats,
         }
+        
+        return success_response(
+            data=response_data,
+            message="작업 큐 시스템 상태 조회 완료"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"상태 조회 실패: {str(e)}")
+        handle_service_error(e, "작업 큐 시스템 상태 조회 실패")
 
 
 @router.post("/submit", summary="백그라운드 작업 제출")
@@ -44,7 +55,7 @@ async def submit_task(
     ),
     args: Optional[str] = Query(None, description="작업 인자들 (JSON 형식)"),
     kwargs: Optional[str] = Query(None, description="작업 키워드 인자들 (JSON 형식)"),
-):
+) -> ApiResponse:
     """백그라운드 작업을 큐에 제출합니다."""
     try:
         # 우선순위 변환
@@ -68,33 +79,39 @@ async def submit_task(
             task_name, *parsed_args, priority=task_priority, **parsed_kwargs
         )
 
-        return {
-            "success": True,
+        response_data = {
             "task_id": task_id,
             "task_name": task_name,
             "priority": priority,
             "submitted_at": datetime.now().isoformat(),
-            "message": "작업이 성공적으로 제출되었습니다",
         }
+        
+        return success_response(
+            data=response_data,
+            message="작업이 성공적으로 제출되었습니다"
+        )
 
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"JSON 파싱 오류: {str(e)}")
+        handle_service_error(e, "JSON 파싱 오류")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        handle_service_error(e, "잘못된 요청")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"작업 제출 실패: {str(e)}")
+        handle_service_error(e, "작업 제출 실패")
 
 
 @router.get("/task/{task_id}", summary="작업 상태 조회")
-async def get_task_status(task_id: str):
+async def get_task_status(task_id: str) -> ApiResponse:
     """특정 작업의 상태와 진행 상황을 조회합니다."""
     try:
         progress = await get_task_progress(task_id)
 
         if "error" in progress:
-            raise HTTPException(status_code=404, detail=progress["error"])
+            not_found_response(progress["error"])
 
-        return progress
+        return success_response(
+            data=progress,
+            message=f"작업 {task_id} 상태 조회 완료"
+        )
 
     except HTTPException:
         raise

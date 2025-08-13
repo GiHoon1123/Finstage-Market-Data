@@ -12,6 +12,12 @@ from app.technical_analysis.dto.signal_response import (
     TechnicalSignalResponse,
 )
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    paginated_response,
+    handle_service_error,
+)
 from app.technical_analysis.service.signal_storage_service import SignalStorageService
 from app.technical_analysis.service.technical_monitor_service import (
     TechnicalMonitorService,
@@ -54,7 +60,7 @@ signal_filtering_service = SignalFilteringService()
 
 @router.get(
     "/signals",
-    response_model=SignalListResponse,
+    response_model=ApiResponse,
     summary="기술적 분석 신호 조회",
     description="""
     최근 발생한 기술적 분석 신호들을 조회합니다.
@@ -82,7 +88,7 @@ signal_filtering_service = SignalFilteringService()
         **common_responses,
         200: {
             "description": "기술적 신호를 성공적으로 조회했습니다.",
-            "model": SignalListResponse,
+            "model": ApiResponse,
         },
     },
 )
@@ -102,7 +108,7 @@ async def get_recent_signals(
         24, description="조회할 시간 범위 (시간)", ge=1, le=168, example=24
     ),
     limit: int = Query(50, description="최대 조회 개수", ge=1, le=200, example=50),
-) -> SignalListResponse:
+) -> ApiResponse:
     """
     최근 발생한 기술적 분석 신호들을 조회합니다.
 
@@ -152,10 +158,14 @@ async def get_recent_signals(
         }
 
         session.close()
-        return response_data
+        
+        return success_response(
+            data=response_data,
+            message=f"기술적 신호 조회 완료 ({len(signals)}개 신호)"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"신호 조회 실패: {str(e)}")
+        handle_service_error(e, "기술적 신호 조회 실패")
 
 
 @router.get(
@@ -170,7 +180,7 @@ async def get_signals_by_symbol(
     timeframe: Optional[str] = Query(None, description="시간대 필터"),
     limit: int = Query(100, description="최대 조회 개수", ge=1, le=500),
     offset: int = Query(0, description="건너뛸 개수 (페이징)", ge=0),
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     특정 심볼의 기술적 신호들을 조회합니다.
 
@@ -208,18 +218,31 @@ async def get_signals_by_symbol(
             if timeframe:
                 signals = [s for s in signals if s.timeframe == timeframe]
 
+        # 전체 개수 조회 (페이징을 위해)
+        total_signals = repository.find_by_symbol(symbol=symbol)
+        if timeframe:
+            total_signals = [s for s in total_signals if s.timeframe == timeframe]
+        total_count = len(total_signals)
+
         response_data = {
             "symbol": symbol,
             "signals": [signal.to_dict() for signal in signals],
-            "pagination": {"limit": limit, "offset": offset, "count": len(signals)},
             "filters": {"signal_type": signal_type, "timeframe": timeframe},
         }
 
         session.close()
-        return response_data
+        
+        # 페이징 응답 사용
+        return paginated_response(
+            items=response_data,
+            page=(offset // limit) + 1,
+            size=limit,
+            total=total_count,
+            message=f"{symbol} 신호 조회 완료"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"심볼별 신호 조회 실패: {str(e)}")
+        handle_service_error(e, f"{symbol} 신호 조회 실패")
 
 
 # =============================================================================
@@ -236,7 +259,7 @@ async def get_signals_by_symbol(
 async def get_signal_count_stats(
     days: int = Query(30, description="조회할 일수", ge=1, le=365),
     symbol: Optional[str] = Query(None, description="심볼 필터"),
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     신호 타입별 발생 횟수 통계를 조회합니다.
 
@@ -296,10 +319,14 @@ async def get_signal_count_stats(
         }
 
         session.close()
-        return response_data
+        
+        return success_response(
+            data=response_data,
+            message=f"신호 통계 조회 완료 ({sum(stat['count'] for stat in stats)}개 신호)"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"신호 통계 조회 실패: {str(e)}")
+        handle_service_error(e, "신호 통계 조회 실패")
 
 
 @router.get(
@@ -311,7 +338,7 @@ async def get_signal_count_stats(
 async def get_daily_signal_count(
     symbol: str = Path(..., example="AAPL", description="조회할 심볼"),
     days: int = Query(30, description="조회할 일수", ge=1, le=90),
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     특정 심볼의 일별 신호 발생 횟수를 조회합니다.
 
@@ -347,12 +374,15 @@ async def get_daily_signal_count(
         }
 
         session.close()
-        return response_data
+        
+        total_signals = sum(day["count"] for day in daily_counts)
+        return success_response(
+            data=response_data,
+            message=f"{symbol} 일별 신호 통계 조회 완료 ({total_signals}개 신호)"
+        )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"일별 신호 통계 조회 실패: {str(e)}"
-        )
+        handle_service_error(e, f"{symbol} 일별 신호 통계 조회 실패")
 
 
 @router.get("/stats/signal-strength/{signal_type}", summary="신호 강도 통계")

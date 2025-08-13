@@ -2,6 +2,7 @@ from fastapi import APIRouter, status, HTTPException
 from app.message_notification.dto.message_request import MessageRequest
 from app.message_notification.handler.message_handler import handle_send_message
 from app.common.config.api_metadata import common_responses
+from app.common.utils.response_helper import handle_service_error
 
 router = APIRouter()
 
@@ -57,5 +58,6 @@ async def send_message(request: MessageRequest):
     """
     try:
         await handle_send_message(request.message)
+        # 204 상태 코드는 성공이지만 응답 본문이 없음
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"메시지 전송 실패: {str(e)}")
+        handle_service_error(e, "메시지 전송 실패")

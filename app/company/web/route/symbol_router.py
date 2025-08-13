@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query
 from app.company.handler.symbol_handler import handle_get_paginated_symbols
-from app.common.response.pagination import PaginatedResponse
 from app.company.dto.symbol_response import SymbolResponse
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import paginated_response, handle_service_error
 import pandas as pd
 import json
 
@@ -16,7 +17,7 @@ def safe_df_to_dict(df: pd.DataFrame) -> dict:
 
 @router.get(
     "/symbols",
-    response_model=PaginatedResponse[SymbolResponse],
+    response_model=ApiResponse,
     summary="주식 심볼 목록 조회",
     description="""
     등록된 모든 주식 심볼의 페이지네이션된 목록을 조회합니다.
@@ -40,7 +41,7 @@ def safe_df_to_dict(df: pd.DataFrame) -> dict:
         **common_responses,
         200: {
             "description": "심볼 목록을 성공적으로 조회했습니다.",
-            "model": PaginatedResponse[SymbolResponse],
+            "model": ApiResponse,
         },
     },
 )
@@ -58,18 +59,13 @@ def get_symbols(
     """
     try:
         result = handle_get_paginated_symbols(page, size)
-        if not result.items:
-            return PaginatedResponse[SymbolResponse](
-                total=0,
-                page=page,
-                size=size,
-                total_pages=0,
-                has_next=False,
-                has_prev=False,
-                items=[],
-            )
-        return result
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve symbols: {str(e)}"
+
+        return paginated_response(
+            items=result.items if result.items else [],
+            page=page,
+            size=size,
+            total=result.total if result else 0,
+            message="심볼 목록 조회가 완료되었습니다",
         )
+    except Exception as e:
+        handle_service_error(e, "심볼 목록 조회 실패")

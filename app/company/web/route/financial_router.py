@@ -1,13 +1,19 @@
 from fastapi import APIRouter, Path, HTTPException
 from app.company.handler.financial_handler import handle_get_financials
 from app.company.dto.financial_response import FinancialResponse
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    not_found_response,
+    handle_service_error,
+)
 
 router = APIRouter()
 
 
 @router.get(
     "/financials/{symbol}",
-    response_model=FinancialResponse,
+    response_model=ApiResponse,
     summary="기업 재무제표 조회",
     description="""
     특정 기업의 종합 재무제표 정보를 조회합니다.
@@ -26,7 +32,7 @@ router = APIRouter()
     responses={
         200: {
             "description": "재무제표를 성공적으로 조회했습니다.",
-            "model": FinancialResponse,
+            "model": ApiResponse,
         },
         404: {
             "description": "해당 심볼의 재무제표를 찾을 수 없습니다.",
@@ -65,15 +71,18 @@ def get_financials(
         max_length=10,
         regex="^[A-Z]+$",
     )
-):
+) -> ApiResponse:
     """
     기업의 종합 재무제표 정보를 조회합니다.
 
     최신 재무제표 데이터를 기반으로 손익계산서, 재무상태표, 현금흐름표를 제공합니다.
     """
     try:
-        return handle_get_financials(symbol)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404, detail=f"Symbol '{symbol}' not found in financial database"
+        financial_data = handle_get_financials(symbol)
+        
+        return success_response(
+            data=financial_data,
+            message=f"{symbol} 재무제표 조회가 완료되었습니다"
         )
+    except Exception as e:
+        handle_service_error(e, f"{symbol} 재무제표 조회 실패")

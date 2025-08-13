@@ -21,6 +21,11 @@ from app.common.monitoring.alert_system import (
 )
 from app.common.utils.logging_config import get_logger
 from app.common.utils.memory_optimizer import memory_monitor
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    handle_service_error,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v2/alerts", tags=["Alert System"])
@@ -59,7 +64,7 @@ class WebhookRequest(BaseModel):
 
 @router.get("/", summary="활성 알림 조회")
 @memory_monitor
-async def get_active_alerts() -> Dict[str, Any]:
+async def get_active_alerts() -> ApiResponse:
     """
     현재 활성 상태인 알림들을 조회합니다.
 
@@ -87,22 +92,27 @@ async def get_active_alerts() -> Dict[str, Any]:
                 }
             )
 
-        return {
+        response_data = {
             "active_alerts": alerts_data,
             "total_count": len(alerts_data),
             "retrieved_at": datetime.now().isoformat(),
         }
 
+        return success_response(
+            data=response_data,
+            message=f"활성 알림 조회 완료 ({len(alerts_data)}개 알림)"
+        )
+
     except Exception as e:
         logger.error("active_alerts_retrieval_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "활성 알림 조회 실패")
 
 
 @router.get("/history", summary="알림 히스토리 조회")
 @memory_monitor
 async def get_alert_history(
     hours: int = Query(24, description="조회할 시간 범위 (시간)")
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     지정된 시간 범위 내의 알림 히스토리를 조회합니다.
 
@@ -136,16 +146,21 @@ async def get_alert_history(
                 }
             )
 
-        return {
+        response_data = {
             "alert_history": history_data,
             "time_range_hours": hours,
             "total_count": len(history_data),
             "retrieved_at": datetime.now().isoformat(),
         }
 
+        return success_response(
+            data=response_data,
+            message=f"알림 히스토리 조회 완료 ({len(history_data)}개 알림, {hours}시간 범위)"
+        )
+
     except Exception as e:
         logger.error("alert_history_retrieval_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "알림 히스토리 조회 실패")
 
 
 @router.get("/statistics", summary="알림 통계 조회")

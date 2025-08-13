@@ -15,6 +15,11 @@ from app.technical_analysis.dto.pattern_response import (
     HealthCheckResponse,
 )
 from app.common.config.api_metadata import common_responses
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    handle_service_error,
+)
 
 router = APIRouter()
 advanced_pattern_service = AdvancedPatternService()
@@ -22,7 +27,7 @@ advanced_pattern_service = AdvancedPatternService()
 
 @router.get(
     "/similarity-matrix/{symbol}",
-    response_model=PatternSimilarityResponse,
+    response_model=ApiResponse,
     summary="패턴 유사도 매트릭스 분석",
     description="""
     특정 심볼의 차트 패턴들 간의 유사도를 분석합니다.
@@ -43,14 +48,14 @@ advanced_pattern_service = AdvancedPatternService()
         **common_responses,
         200: {
             "description": "패턴 유사도 분석이 완료되었습니다.",
-            "model": PatternSimilarityResponse,
+            "model": ApiResponse,
         },
     },
 )
 async def get_pattern_similarity_matrix(
     symbol: str = Path(..., example="AAPL", description="분석할 주식 심볼"),
     pattern_type: str = Query(default="sequential", description="패턴 타입"),
-):
+) -> ApiResponse:
     """
     패턴 간 유사도 매트릭스 분석
 
@@ -65,12 +70,15 @@ async def get_pattern_similarity_matrix(
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            handle_service_error(Exception(result["error"]), "패턴 유사도 분석 실패")
 
-        return result
+        return success_response(
+            data=result,
+            message=f"{symbol} 패턴 유사도 분석이 완료되었습니다"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"유사도 분석 실패: {str(e)}")
+        handle_service_error(e, "패턴 유사도 분석 실패")
 
 
 @router.get("/clustering/{symbol}")
@@ -78,7 +86,7 @@ async def cluster_patterns(
     symbol: str,
     n_clusters: int = Query(default=5, ge=2, le=20, description="클러스터 개수"),
     min_patterns: int = Query(default=10, ge=5, description="최소 패턴 개수"),
-):
+) -> ApiResponse:
     """
     패턴 클러스터링을 통한 그룹화
 
@@ -94,12 +102,15 @@ async def cluster_patterns(
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            handle_service_error(Exception(result["error"]), "패턴 클러스터링 실패")
 
-        return result
+        return success_response(
+            data=result,
+            message=f"{symbol} 패턴 클러스터링이 완료되었습니다 ({n_clusters}개 클러스터)"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"패턴 클러스터링 실패: {str(e)}")
+        handle_service_error(e, "패턴 클러스터링 실패")
 
 
 @router.get("/temporal-analysis/{symbol}")
@@ -109,7 +120,7 @@ async def analyze_temporal_patterns(
         default="1h", description="시간대 (1m, 5m, 15m, 1h, 4h, 1d)"
     ),
     days: int = Query(default=30, ge=7, le=365, description="분석 기간 (일)"),
-):
+) -> ApiResponse:
     """
     시계열 패턴 분석
 
@@ -125,18 +136,21 @@ async def analyze_temporal_patterns(
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            handle_service_error(Exception(result["error"]), "시계열 패턴 분석 실패")
 
-        return result
+        return success_response(
+            data=result,
+            message=f"{symbol} 시계열 패턴 분석이 완료되었습니다 ({timeframe}, {days}일)"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"시계열 패턴 분석 실패: {str(e)}")
+        handle_service_error(e, "시계열 패턴 분석 실패")
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> ApiResponse:
     """고급 패턴 분석 서비스 상태 확인"""
-    return {
+    health_data = {
         "service": "Advanced Pattern Analysis",
         "status": "healthy",
         "features": [
@@ -146,3 +160,8 @@ async def health_check():
             "머신러닝 기반 패턴 매칭",
         ],
     }
+    
+    return success_response(
+        data=health_data,
+        message="고급 패턴 분석 서비스가 정상적으로 작동 중입니다"
+    )

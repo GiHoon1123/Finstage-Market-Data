@@ -19,6 +19,11 @@ from app.common.testing.ab_test_system import (
 )
 from app.common.utils.logging_config import get_logger
 from app.common.utils.memory_optimizer import memory_monitor
+from app.common.dto.api_response import ApiResponse
+from app.common.utils.response_helper import (
+    success_response,
+    handle_service_error,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v2/ab-tests", tags=["A/B Testing"])
@@ -65,7 +70,7 @@ class TestResultRequest(BaseModel):
 
 @router.get("/", summary="A/B 테스트 목록 조회")
 @memory_monitor
-async def get_ab_tests() -> Dict[str, Any]:
+async def get_ab_tests() -> ApiResponse:
     """
     등록된 A/B 테스트 목록을 조회합니다.
 
@@ -77,18 +82,21 @@ async def get_ab_tests() -> Dict[str, Any]:
         summary = ab_test_system.get_test_summary()
 
         if "error" in summary:
-            raise HTTPException(status_code=500, detail=summary["error"])
+            handle_service_error(Exception(summary["error"]), "A/B 테스트 목록 조회 실패")
 
-        return summary
+        return success_response(
+            data=summary,
+            message="A/B 테스트 목록 조회 완료"
+        )
 
     except Exception as e:
         logger.error("ab_tests_list_api_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, "A/B 테스트 목록 조회 실패")
 
 
 @router.get("/{test_id}", summary="특정 A/B 테스트 조회")
 @memory_monitor
-async def get_ab_test(test_id: str) -> Dict[str, Any]:
+async def get_ab_test(test_id: str) -> ApiResponse:
     """
     특정 A/B 테스트의 상세 정보를 조회합니다.
 
@@ -102,7 +110,7 @@ async def get_ab_test(test_id: str) -> Dict[str, Any]:
         ab_test_system = get_ab_test_system()
 
         if test_id not in ab_test_system.ab_tests:
-            raise HTTPException(status_code=404, detail=f"AB test not found: {test_id}")
+            handle_service_error(Exception(f"AB test not found: {test_id}"), "A/B 테스트를 찾을 수 없습니다")
 
         test = ab_test_system.ab_tests[test_id]
 
@@ -121,7 +129,7 @@ async def get_ab_test(test_id: str) -> Dict[str, Any]:
                 }
             )
 
-        return {
+        test_data = {
             "id": test.id,
             "name": test.name,
             "description": test.description,
@@ -139,16 +147,19 @@ async def get_ab_test(test_id: str) -> Dict[str, Any]:
             "results_count": len(ab_test_system.test_results.get(test_id, [])),
         }
 
-    except HTTPException:
-        raise
+        return success_response(
+            data=test_data,
+            message=f"A/B 테스트 '{test.name}' 조회 완료"
+        )
+
     except Exception as e:
         logger.error("ab_test_detail_api_failed", test_id=test_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"A/B 테스트 '{test_id}' 조회 실패")
 
 
 @router.post("/", summary="A/B 테스트 생성")
 @memory_monitor
-async def create_ab_test(test_request: ABTestConfigRequest) -> Dict[str, Any]:
+async def create_ab_test(test_request: ABTestConfigRequest) -> ApiResponse:
     """
     새로운 A/B 테스트를 생성합니다.
 
@@ -202,27 +213,28 @@ async def create_ab_test(test_request: ABTestConfigRequest) -> Dict[str, Any]:
         success = ab_test_system.create_ab_test(test_config)
 
         if success:
-            return {
-                "status": "success",
-                "message": "AB test created successfully",
+            response_data = {
                 "test_id": test_request.id,
                 "created_at": datetime.now().isoformat(),
             }
+            
+            return success_response(
+                data=response_data,
+                message=f"A/B 테스트 '{test_request.name}'이 성공적으로 생성되었습니다"
+            )
         else:
-            raise HTTPException(status_code=500, detail="Failed to create AB test")
+            handle_service_error(Exception("Failed to create AB test"), "A/B 테스트 생성 실패")
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(
             "ab_test_creation_api_failed", test_id=test_request.id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"A/B 테스트 '{test_request.name}' 생성 실패")
 
 
 @router.post("/{test_id}/start", summary="A/B 테스트 시작")
 @memory_monitor
-async def start_ab_test(test_id: str) -> Dict[str, Any]:
+async def start_ab_test(test_id: str) -> ApiResponse:
     """
     A/B 테스트를 시작합니다.
 
@@ -237,25 +249,28 @@ async def start_ab_test(test_id: str) -> Dict[str, Any]:
         success = ab_test_system.start_ab_test(test_id)
 
         if success:
-            return {
-                "status": "success",
-                "message": "AB test started successfully",
+            response_data = {
                 "test_id": test_id,
                 "started_at": datetime.now().isoformat(),
             }
+            
+            return success_response(
+                data=response_data,
+                message=f"A/B 테스트 '{test_id}'이 성공적으로 시작되었습니다"
+            )
         else:
-            raise HTTPException(status_code=500, detail="Failed to start AB test")
+            handle_service_error(Exception("Failed to start AB test"), "A/B 테스트 시작 실패")
 
     except Exception as e:
         logger.error("ab_test_start_api_failed", test_id=test_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"A/B 테스트 '{test_id}' 시작 실패")
 
 
 @router.post("/{test_id}/stop", summary="A/B 테스트 중지")
 @memory_monitor
 async def stop_ab_test(
     test_id: str, reason: str = Body("", description="중지 이유")
-) -> Dict[str, Any]:
+) -> ApiResponse:
     """
     A/B 테스트를 중지합니다.
 
@@ -271,19 +286,22 @@ async def stop_ab_test(
         success = ab_test_system.stop_ab_test(test_id, reason)
 
         if success:
-            return {
-                "status": "success",
-                "message": "AB test stopped successfully",
+            response_data = {
                 "test_id": test_id,
                 "reason": reason,
                 "stopped_at": datetime.now().isoformat(),
             }
+            
+            return success_response(
+                data=response_data,
+                message=f"A/B 테스트 '{test_id}'이 성공적으로 중지되었습니다"
+            )
         else:
-            raise HTTPException(status_code=500, detail="Failed to stop AB test")
+            handle_service_error(Exception("Failed to stop AB test"), "A/B 테스트 중지 실패")
 
     except Exception as e:
         logger.error("ab_test_stop_api_failed", test_id=test_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        handle_service_error(e, f"A/B 테스트 '{test_id}' 중지 실패")
 
 
 @router.get("/{test_id}/assign/{user_identifier}", summary="변형 할당 조회")
