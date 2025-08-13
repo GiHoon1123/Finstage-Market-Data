@@ -6,6 +6,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # 실행환경 지정: export ENV_MODE=prod 처럼 외부에서 주입 가능
 mode = os.getenv("ENV_MODE", "dev")
@@ -146,9 +147,24 @@ app = FastAPI(
         "url": "https://opensource.org/licenses/MIT",
     },
     servers=[
-        {"url": "http://localhost:8000", "description": "개발 서버"},
+        {"url": "http://localhost:8080", "description": "개발 서버"},
+        {"url": "http://localhost:8081", "description": "개발 서버 (대체)"},
         {"url": "https://api.finstage.com", "description": "운영 서버"},
     ],
+)
+
+# CORS 미들웨어 추가
+cors_origins = (
+    settings.security.cors_origins.split(",")
+    if settings.security.cors_origins != "*"
+    else ["*"]
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 모니터링 미들웨어 추가
