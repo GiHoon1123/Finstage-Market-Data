@@ -56,7 +56,7 @@ class PriceAlert:
 class RealtimePriceStreamer:
     """실시간 가격 스트리밍 서비스"""
 
-    def __init__(self, update_interval: int = 10):
+    def __init__(self, update_interval: int = 300):
         self.update_interval = update_interval  # 초
         self.price_service = AsyncPriceService(max_workers=3, max_concurrency=8)
         self.async_executor = AsyncExecutor(max_concurrency=15)
@@ -431,4 +431,4 @@ class RealtimePriceStreamer:
 
 
 # 전역 실시간 가격 스트리머
-realtime_price_streamer = RealtimePriceStreamer(update_interval=10)
+realtime_price_streamer = RealtimePriceStreamer(update_interval=300)

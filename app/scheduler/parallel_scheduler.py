@@ -215,6 +215,64 @@ def run_yahoo_stock_news_parallel():
 @measure_execution_time
 @handle_scheduler_errors(reraise=False, return_on_error=None)
 @memory_monitor()
+def run_yahoo_macro_news_parallel():
+    """Yahoo 거시경제 지표 뉴스 크롤링 (병렬)"""
+    logger.info("news_crawling_started", source="yahoo_macro")
+
+    def process_symbol(symbol):
+        logger.debug("processing_symbol", source="yahoo_macro", symbol=symbol)
+        crawler = YahooNewsCrawler(symbol)
+        result = crawler.process_all()
+        return result
+
+    # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
+    from app.common.constants.symbol_names import YAHOO_NEWS_SYMBOLS
+    results = executor.run_symbol_tasks_parallel(
+        process_symbol, list(YAHOO_NEWS_SYMBOLS.keys()), delay=0.5
+    )
+
+    success_count = sum(1 for r in results if r is not None)
+    logger.info(
+        "news_crawling_completed",
+        source="yahoo_macro",
+        success_count=success_count,
+        total_count=len(YAHOO_NEWS_SYMBOLS),
+        success_rate=success_count / len(YAHOO_NEWS_SYMBOLS),
+    )
+
+
+@measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
+@memory_monitor()
+def run_investing_macro_news_parallel():
+    """Investing.com 거시경제 특화 뉴스 크롤링 (병렬)"""
+    logger.info("news_crawling_started", source="investing_macro")
+
+    def process_symbol(symbol):
+        logger.debug("processing_symbol", source="investing_macro", symbol=symbol)
+        crawler = InvestingNewsCrawler(symbol)
+        result = crawler.process_all()
+        return result
+
+    # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
+    from app.common.constants.investing_config import INVESTING_MACRO_SYMBOLS
+    results = executor.run_symbol_tasks_parallel(
+        process_symbol, INVESTING_MACRO_SYMBOLS, delay=0.5
+    )
+
+    success_count = sum(1 for r in results if r is not None)
+    logger.info(
+        "news_crawling_completed",
+        source="investing_macro",
+        success_count=success_count,
+        total_count=len(INVESTING_MACRO_SYMBOLS),
+        success_rate=success_count / len(INVESTING_MACRO_SYMBOLS),
+    )
+
+
+@measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
+@memory_monitor()
 def run_high_price_update_job_parallel():
     """상장 후 최고가 갱신 (병렬)"""
     logger.info("high_price_update_started")
@@ -395,6 +453,69 @@ def run_realtime_price_monitor_job_parallel():
     )
 
 
+@measure_execution_time
+@handle_scheduler_errors(reraise=False, return_on_error=None)
+@memory_monitor()
+def run_ml_training_data_collection_parallel():
+    """ML 모델 훈련용 거시경제 지표 데이터 수집 (병렬)"""
+    logger.info("ml_training_data_collection_started")
+
+    try:
+        # ML 훈련용 거시경제 데이터는 Yahoo 가격 클라이언트로 수집
+        from app.common.infra.client.yahoo_price_client import YahooPriceClient
+        from app.technical_analysis.infra.model.repository.daily_price_repository import DailyPriceRepository
+        from app.common.constants.symbol_names import ML_TRAINING_SYMBOLS
+        
+        client = YahooPriceClient()
+        repository = DailyPriceRepository()
+        
+        successful_symbols = 0
+        total_records = 0
+        
+        for symbol in ML_TRAINING_SYMBOLS.keys():
+            try:
+                # 일봉 데이터 수집
+                df = client.get_daily_data(symbol, period="1mo")
+                if df is not None and not df.empty:
+                    # 데이터베이스에 저장
+                    for index, row in df.iterrows():
+                        repository.save_daily_price(
+                            symbol=symbol,
+                            date=index,
+                            open_price=row['Open'],
+                            high_price=row['High'],
+                            low_price=row['Low'],
+                            close_price=row['Close'],
+                            volume=row['Volume']
+                        )
+                    successful_symbols += 1
+                    total_records += len(df)
+                    
+            except Exception as e:
+                logger.error(f"symbol_data_collection_failed", symbol=symbol, error=str(e))
+                continue
+        
+        result = {
+            "successful_symbols": successful_symbols,
+            "total_symbols": len(ML_TRAINING_SYMBOLS),
+            "total_records": total_records
+        }
+
+        logger.info(
+            "ml_training_data_collection_completed",
+            success_count=successful_symbols,
+            total_count=len(ML_TRAINING_SYMBOLS),
+            total_records=total_records,
+            success_rate=successful_symbols / len(ML_TRAINING_SYMBOLS) * 100 if ML_TRAINING_SYMBOLS else 0
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error("ml_training_data_collection_failed", error=str(e))
+        return None
+
+
 @memory_monitor()
 def start_parallel_scheduler():
     """병렬 처리 기능이 추가된 스케줄러 시작"""
@@ -416,6 +537,14 @@ def start_parallel_scheduler():
     scheduler.add_job(
         run_investing_market_news_parallel, "interval", minutes=3
     )  # 시장 뉴스 3분마다
+
+    # 새로 추가한 거시경제 지표 뉴스 크롤링도 3분마다
+    scheduler.add_job(
+        run_yahoo_macro_news_parallel, "interval", minutes=3
+    )  # Yahoo 거시경제 뉴스 3분마다
+    scheduler.add_job(
+        run_investing_macro_news_parallel, "interval", minutes=3
+    )  # Investing 거시경제 뉴스 3분마다
 
     # 가격 관련 작업도 3분마다
     scheduler.add_job(
@@ -489,6 +618,9 @@ def start_parallel_scheduler():
 
     # 비동기 기술적 분석 작업도 3분마다
     scheduler.add_job(run_async_technical_analysis_job, "interval", minutes=3)
+
+    # ML 모델 훈련용 데이터 수집 작업도 3분마다
+    scheduler.add_job(run_ml_training_data_collection_parallel, "interval", minutes=3)
 
     logger.info("parallel_scheduler_started")
     scheduler.start()

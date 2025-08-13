@@ -8,24 +8,160 @@ from datetime import datetime, timedelta
 
 class YahooPriceClient:
     BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/"
+    
+    # 다양한 브라우저 User-Agent (더 현실적인 시뮬레이션)
     USER_AGENTS = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        "Mozilla/5.0 (X11; Linux x86_64)",
+        # Chrome (Windows)
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+        
+        # Chrome (Mac)
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        
+        # Firefox (Windows)
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) Gecko/20100101 Firefox/119.0",
+        
+        # Firefox (Mac)
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:119.0) Gecko/20100101 Firefox/119.0",
+        
+        # Safari (Mac)
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        
+        # Edge (Windows)
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
+    ]
+    
+    # 브라우저가 보내는 Accept 헤더들
+    ACCEPT_HEADERS = [
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "application/json, text/plain, */*",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    ]
+    
+    # 언어 설정
+    ACCEPT_LANGUAGES = [
+        "en-US,en;q=0.9",
+        "en-GB,en;q=0.9",
+        "en-CA,en;q=0.9",
+        "ko-KR,ko;q=0.9,en;q=0.8",
+        "ja-JP,ja;q=0.9,en;q=0.8",
+    ]
+    
+    # Referer 헤더 (Yahoo Finance 관련 페이지들)
+    REFERERS = [
+        "https://finance.yahoo.com/",
+        "https://finance.yahoo.com/quote/",
+        "https://finance.yahoo.com/chart/",
+        "https://finance.yahoo.com/portfolio/",
+        "https://www.google.com/",
+        "https://www.bing.com/",
     ]
 
     def __init__(self):
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": random.choice(self.USER_AGENTS)})
+        self._setup_session()
         # 캐시 추가 - 동일한 요청에 대한 중복 호출 방지
         self._cache: Dict[str, Any] = {}
+        self._last_request_time = 0
+
+    def _setup_session(self):
+        """세션을 브라우저처럼 설정"""
+        # 랜덤 User-Agent 설정
+        user_agent = random.choice(self.USER_AGENTS)
+        self.session.headers.update({
+            "User-Agent": user_agent,
+            "Accept": random.choice(self.ACCEPT_HEADERS),
+            "Accept-Language": random.choice(self.ACCEPT_LANGUAGES),
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Cache-Control": "max-age=0",
+        })
+
+    def _get_random_headers(self, symbol: str = None) -> Dict[str, str]:
+        """요청마다 랜덤 헤더 생성"""
+        headers = {}
+        
+        # User-Agent 랜덤 변경
+        headers["User-Agent"] = random.choice(self.USER_AGENTS)
+        
+        # Accept 헤더 랜덤 변경
+        headers["Accept"] = random.choice(self.ACCEPT_HEADERS)
+        
+        # Accept-Language 랜덤 변경
+        headers["Accept-Language"] = random.choice(self.ACCEPT_LANGUAGES)
+        
+        # Referer 설정 (심볼이 있으면 해당 심볼 페이지로)
+        if symbol:
+            referer = f"https://finance.yahoo.com/quote/{symbol}"
+        else:
+            referer = random.choice(self.REFERERS)
+        headers["Referer"] = referer
+        
+        return headers
+
+    def _rate_limit_delay(self):
+        """요청 간 랜덤 지연 (API 제한 방지)"""
+        current_time = time.time()
+        time_since_last = current_time - self._last_request_time
+        
+        # 최소 0.5초, 최대 2초 랜덤 지연
+        min_delay = 0.5
+        max_delay = 2.0
+        
+        if time_since_last < min_delay:
+            delay = random.uniform(min_delay - time_since_last, max_delay)
+            time.sleep(delay)
+        
+        self._last_request_time = time.time()
+
+    def _make_request(self, url: str, symbol: str = None) -> Optional[requests.Response]:
+        """브라우저 시뮬레이션 요청 수행"""
+        try:
+            # 요청 간 지연
+            self._rate_limit_delay()
+            
+            # 랜덤 헤더 설정
+            headers = self._get_random_headers(symbol)
+            
+            # 요청 수행
+            response = self.session.get(url, headers=headers, timeout=10)
+            
+            # 429 에러 시 재시도 (최대 3회)
+            retry_count = 0
+            while response.status_code == 429 and retry_count < 3:
+                print(f"⚠️ {symbol} API 제한 감지, {retry_count + 1}회 재시도 중...")
+                time.sleep(random.uniform(2, 5))  # 더 긴 지연
+                headers = self._get_random_headers(symbol)  # 헤더 재설정
+                response = self.session.get(url, headers=headers, timeout=10)
+                retry_count += 1
+            
+            return response
+            
+        except Exception as e:
+            print(f"❌ {symbol} 요청 실패: {e}")
+            return None
 
     def get_all_time_high(
         self, symbol: str
     ) -> Tuple[Optional[float], Optional[datetime]]:
         url = f"{self.BASE_URL}{symbol}?range=max&interval=1d"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None, None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -59,7 +195,10 @@ class YahooPriceClient:
     ) -> Tuple[Optional[float], Optional[datetime]]:
         url = f"{self.BASE_URL}{symbol}?range=5d&interval=1d"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None, None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -91,7 +230,10 @@ class YahooPriceClient:
     ) -> Tuple[Optional[float], Optional[datetime]]:
         url = f"{self.BASE_URL}{symbol}?range=5d&interval=1d"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None, None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -123,7 +265,10 @@ class YahooPriceClient:
     ) -> Tuple[Optional[float], Optional[datetime]]:
         url = f"{self.BASE_URL}{symbol}?range=5d&interval=1d"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None, None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -167,7 +312,10 @@ class YahooPriceClient:
 
         url = f"{self.BASE_URL}{symbol}?range=1d&interval=1m"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -218,7 +366,10 @@ class YahooPriceClient:
         """1분봉 데이터 수집 (기술적 지표 계산용)"""
         url = f"{self.BASE_URL}{symbol}?range={period}&interval=1m"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -275,7 +426,10 @@ class YahooPriceClient:
         """15분봉 데이터 수집 (기술적 지표 계산용)"""
         url = f"{self.BASE_URL}{symbol}?range={period}&interval=15m"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -331,7 +485,10 @@ class YahooPriceClient:
 
         url = f"{self.BASE_URL}{symbol}?range={period}&interval=1d"
         try:
-            res = self.session.get(url)
+            res = self._make_request(url, symbol)
+            if not res:
+                return None
+                
             res.raise_for_status()
             data = res.json()
 
@@ -402,7 +559,10 @@ class YahooPriceClient:
 
                 print(f"   📅 {year}년 데이터 수집 중...")
 
-                res = self.session.get(url)
+                res = self._make_request(url, symbol)
+                if not res:
+                    continue
+                    
                 res.raise_for_status()
                 data = res.json()
 
