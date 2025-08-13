@@ -16,9 +16,11 @@ class DatabaseSettings(BaseSettings):
 
     host: str = Field(default="localhost", description="MySQL 호스트")
     port: int = Field(default=3306, description="MySQL 포트")
-    user: str = Field(default="test_user", description="MySQL 사용자명")
-    password: str = Field(default="test_password", description="MySQL 비밀번호")
-    database: str = Field(default="test_db", description="데이터베이스 이름")
+    user: str = Field(default="root", description="MySQL 사용자명")
+    password: str = Field(default="1234", description="MySQL 비밀번호")
+    database: str = Field(
+        default="finstage_market_data", description="데이터베이스 이름"
+    )
 
     @validator("password")
     def validate_password(cls, v):
