@@ -24,7 +24,7 @@ from app.common.constants.symbol_names import (
     STOCK_SYMBOLS,
     SYMBOL_PRICE_MAP,
 )
-from app.common.constants.rss_feeds import (
+from app.common.constants.investing_config import (
     INVESTING_ECONOMIC_SYMBOLS,
     INVESTING_MARKET_SYMBOLS,
 )

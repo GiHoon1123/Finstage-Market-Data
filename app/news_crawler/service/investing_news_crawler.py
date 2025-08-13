@@ -4,7 +4,7 @@ from typing import List, Dict
 from dateutil import parser as date_parser
 from app.news_crawler.service.base import BaseCrawler
 from app.news_crawler.service.news_processor import NewsProcessor
-from app.common.constants.rss_feeds import INVESTING_RSS_FEEDS
+from app.common.constants.investing_config import INVESTING_RSS_FEEDS
 from app.common.utils.memory_cache import cache_result
 from app.common.utils.memory_optimizer import memory_monitor
 
