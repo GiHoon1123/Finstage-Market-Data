@@ -68,7 +68,38 @@ class TestResultRequest(BaseModel):
     custom_metrics: Optional[Dict[str, float]] = {}
 
 
-@router.get("/", summary="A/B 테스트 목록 조회")
+@router.get(
+    "/", 
+    summary="A/B 테스트 목록 조회",
+    responses={
+        200: {
+            "description": "A/B 테스트 목록 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "A/B 테스트 목록 조회 완료",
+                        "data": {
+                            "tests": [
+                                {
+                                    "id": "test_001",
+                                    "name": "UI 개선 테스트",
+                                    "status": "running",
+                                    "variants": 2,
+                                    "total_traffic": 1000,
+                                    "start_date": "2025-08-10T00:00:00Z"
+                                }
+                            ],
+                            "total_tests": 5,
+                            "active_tests": 2,
+                            "completed_tests": 3
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def get_ab_tests() -> ApiResponse:
     """
@@ -94,7 +125,45 @@ async def get_ab_tests() -> ApiResponse:
         handle_service_error(e, "A/B 테스트 목록 조회 실패")
 
 
-@router.get("/{test_id}", summary="특정 A/B 테스트 조회")
+@router.get(
+    "/{test_id}", 
+    summary="특정 A/B 테스트 조회",
+    responses={
+        200: {
+            "description": "특정 A/B 테스트 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "A/B 테스트 'UI 개선 테스트' 조회 완료",
+                        "data": {
+                            "id": "test_001",
+                            "name": "UI 개선 테스트",
+                            "description": "새로운 UI 디자인 테스트",
+                            "variants": [
+                                {
+                                    "id": "variant_a",
+                                    "name": "기존 UI",
+                                    "traffic_percentage": 50.0,
+                                    "is_control": True
+                                },
+                                {
+                                    "id": "variant_b",
+                                    "name": "새로운 UI",
+                                    "traffic_percentage": 50.0,
+                                    "is_control": False
+                                }
+                            ],
+                            "status": "running",
+                            "start_time": "2025-08-10T00:00:00Z",
+                            "results_count": 1250
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def get_ab_test(test_id: str) -> ApiResponse:
     """
@@ -157,7 +226,27 @@ async def get_ab_test(test_id: str) -> ApiResponse:
         handle_service_error(e, f"A/B 테스트 '{test_id}' 조회 실패")
 
 
-@router.post("/", summary="A/B 테스트 생성")
+@router.post(
+    "/", 
+    summary="A/B 테스트 생성",
+    responses={
+        200: {
+            "description": "A/B 테스트 생성 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "A/B 테스트 'UI 개선 테스트'이 성공적으로 생성되었습니다",
+                        "data": {
+                            "test_id": "test_001",
+                            "created_at": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def create_ab_test(test_request: ABTestConfigRequest) -> ApiResponse:
     """

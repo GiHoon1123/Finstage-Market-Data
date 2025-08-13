@@ -62,7 +62,37 @@ class WebhookRequest(BaseModel):
     webhook_url: str
 
 
-@router.get("/", summary="활성 알림 조회")
+@router.get(
+    "/", 
+    summary="활성 알림 조회",
+    responses={
+        200: {
+            "description": "활성 알림 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "활성 알림 조회 완료 (3개 알림)",
+                        "data": {
+                            "active_alerts": [
+                                {
+                                    "id": "alert_001",
+                                    "rule_id": "rule_001",
+                                    "title": "높은 CPU 사용률",
+                                    "message": "CPU 사용률이 90%를 초과했습니다",
+                                    "severity": "high",
+                                    "triggered_at": "2025-08-13T13:25:00Z"
+                                }
+                            ],
+                            "total_count": 3,
+                            "retrieved_at": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def get_active_alerts() -> ApiResponse:
     """
@@ -108,7 +138,39 @@ async def get_active_alerts() -> ApiResponse:
         handle_service_error(e, "활성 알림 조회 실패")
 
 
-@router.get("/history", summary="알림 히스토리 조회")
+@router.get(
+    "/history", 
+    summary="알림 히스토리 조회",
+    responses={
+        200: {
+            "description": "알림 히스토리 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "알림 히스토리 조회 완료 (15개 알림, 24시간 범위)",
+                        "data": {
+                            "alert_history": [
+                                {
+                                    "id": "alert_001",
+                                    "rule_id": "rule_001",
+                                    "title": "높은 CPU 사용률",
+                                    "message": "CPU 사용률이 90%를 초과했습니다",
+                                    "severity": "high",
+                                    "triggered_at": "2025-08-13T13:25:00Z",
+                                    "resolved_at": "2025-08-13T13:28:00Z"
+                                }
+                            ],
+                            "time_range_hours": 24,
+                            "total_count": 15,
+                            "retrieved_at": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def get_alert_history(
     hours: int = Query(24, description="조회할 시간 범위 (시간)")

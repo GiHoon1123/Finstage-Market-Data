@@ -48,7 +48,28 @@ advanced_pattern_service = AdvancedPatternService()
         **common_responses,
         200: {
             "description": "패턴 유사도 분석이 완료되었습니다.",
-            "model": ApiResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "AAPL 패턴 유사도 분석이 완료되었습니다",
+                        "data": {
+                            "symbol": "AAPL",
+                            "pattern_type": "sequential",
+                            "similarity_matrix": [
+                                [1.0, 0.85, 0.72],
+                                [0.85, 1.0, 0.78],
+                                [0.72, 0.78, 1.0]
+                            ],
+                            "patterns": [
+                                {"id": "pattern_1", "similarity_score": 0.85},
+                                {"id": "pattern_2", "similarity_score": 0.72}
+                            ],
+                            "analysis_timestamp": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
         },
     },
 )

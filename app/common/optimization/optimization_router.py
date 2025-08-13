@@ -48,7 +48,31 @@ class OptimizationActionRequest(BaseModel):
     reason: Optional[str] = ""
 
 
-@router.get("/status", summary="최적화 상태 조회")
+@router.get(
+    "/status", 
+    summary="최적화 상태 조회",
+    responses={
+        200: {
+            "description": "최적화 상태 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "최적화 상태 조회 완료",
+                        "data": {
+                            "optimization_status": "active",
+                            "active_rules": 5,
+                            "total_rules": 8,
+                            "performance_improvement": 15.5,
+                            "last_optimization": "2025-08-13T13:00:00Z",
+                            "system_health": "excellent"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 @memory_monitor
 async def get_optimization_status() -> ApiResponse:
     """

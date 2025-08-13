@@ -26,7 +26,34 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["Task Queue Management"])
 
 
-@router.get("/status", summary="작업 큐 시스템 상태")
+@router.get(
+    "/status", 
+    summary="작업 큐 시스템 상태",
+    responses={
+        200: {
+            "description": "작업 큐 시스템 상태 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "작업 큐 시스템 상태 조회 완료",
+                        "data": {
+                            "timestamp": "2025-08-13T13:30:00Z",
+                            "system_status": "running",
+                            "queue_statistics": {
+                                "total_tasks": 150,
+                                "completed_tasks": 120,
+                                "failed_tasks": 5,
+                                "pending_tasks": 25,
+                                "active_workers": 3
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def get_task_queue_status() -> ApiResponse:
     """작업 큐 시스템의 전체 상태를 조회합니다."""
     try:
@@ -45,7 +72,29 @@ async def get_task_queue_status() -> ApiResponse:
         handle_service_error(e, "작업 큐 시스템 상태 조회 실패")
 
 
-@router.post("/submit", summary="백그라운드 작업 제출")
+@router.post(
+    "/submit", 
+    summary="백그라운드 작업 제출",
+    responses={
+        200: {
+            "description": "작업 제출 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "작업이 성공적으로 제출되었습니다",
+                        "data": {
+                            "task_id": "task_20250813_133000",
+                            "task_name": "process_dataset",
+                            "priority": "normal",
+                            "submitted_at": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def submit_task(
     task_name: str = Query(
         ..., description="작업 이름 (process_dataset, generate_report, etc.)"
@@ -99,7 +148,30 @@ async def submit_task(
         handle_service_error(e, "작업 제출 실패")
 
 
-@router.get("/task/{task_id}", summary="작업 상태 조회")
+@router.get(
+    "/task/{task_id}", 
+    summary="작업 상태 조회",
+    responses={
+        200: {
+            "description": "작업 상태 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "작업 task_20250813_133000 상태 조회 완료",
+                        "data": {
+                            "task_id": "task_20250813_133000",
+                            "status": "running",
+                            "progress": 65,
+                            "started_at": "2025-08-13T13:30:00Z",
+                            "estimated_completion": "2025-08-13T13:45:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def get_task_status(task_id: str) -> ApiResponse:
     """특정 작업의 상태와 진행 상황을 조회합니다."""
     try:

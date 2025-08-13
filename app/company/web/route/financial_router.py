@@ -32,7 +32,32 @@ router = APIRouter()
     responses={
         200: {
             "description": "재무제표를 성공적으로 조회했습니다.",
-            "model": ApiResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "AAPL 재무제표 조회가 완료되었습니다",
+                        "data": {
+                            "symbol": "AAPL",
+                            "income_statement": {
+                                "revenue": 394328000000,
+                                "net_income": 96995000000,
+                                "fiscal_year": 2023
+                            },
+                            "balance_sheet": {
+                                "total_assets": 352755000000,
+                                "total_liabilities": 287912000000,
+                                "total_equity": 64843000000
+                            },
+                            "cash_flow": {
+                                "operating_cash_flow": 110543000000,
+                                "investing_cash_flow": -10982000000,
+                                "financing_cash_flow": -110749000000
+                            }
+                        }
+                    }
+                }
+            },
         },
         404: {
             "description": "해당 심볼의 재무제표를 찾을 수 없습니다.",

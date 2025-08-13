@@ -73,7 +73,31 @@ high_record_service = PriceHighRecordService()
         **common_responses,
         200: {
             "description": "현재 가격을 성공적으로 조회했습니다.",
-            "model": CurrentPriceResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "AAPL 현재 가격 조회가 완료되었습니다",
+                        "data": {
+                            "symbol": "AAPL",
+                            "current_price": 175.43,
+                            "timestamp": "2025-08-13T13:30:00Z",
+                            "details": {
+                                "price_summary": {
+                                    "high": 176.50,
+                                    "low": 174.20,
+                                    "volume": 45678900
+                                },
+                                "snapshot_summary": {
+                                    "open": 175.10,
+                                    "previous_close": 174.85,
+                                    "change": 0.58
+                                }
+                            }
+                        }
+                    }
+                }
+            },
         },
     },
 )
@@ -241,8 +265,6 @@ async def get_price_history_async(
     except Exception as e:
         logger.error("price_history_query_failed", symbol=symbol, error=str(e))
         handle_service_error(e, f"{symbol} 가격 히스토리 조회 실패")
-            status_code=500, detail=f"가격 히스토리 조회 실패: {str(e)}"
-        )
 
 
 @router.post("/monitor/batch", summary="배치 가격 모니터링")

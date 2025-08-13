@@ -68,16 +68,16 @@ tags_metadata = [
     },
 ]
 
-# 공통 응답 예시
+# 공통 응답 예시 (ApiResponse 구조에 맞게 업데이트)
 common_responses = {
     400: {
         "description": "잘못된 요청",
         "content": {
             "application/json": {
                 "example": {
-                    "error": "BAD_REQUEST",
+                    "status": 400,
                     "message": "요청 데이터가 올바르지 않습니다",
-                    "timestamp": "2025-08-09T12:00:00Z",
+                    "data": None,
                 }
             }
         },
@@ -87,9 +87,9 @@ common_responses = {
         "content": {
             "application/json": {
                 "example": {
-                    "error": "UNAUTHORIZED",
+                    "status": 401,
                     "message": "인증이 필요합니다",
-                    "timestamp": "2025-08-09T12:00:00Z",
+                    "data": None,
                 }
             }
         },
@@ -99,9 +99,9 @@ common_responses = {
         "content": {
             "application/json": {
                 "example": {
-                    "error": "FORBIDDEN",
+                    "status": 403,
                     "message": "접근 권한이 없습니다",
-                    "timestamp": "2025-08-09T12:00:00Z",
+                    "data": None,
                 }
             }
         },
@@ -111,9 +111,9 @@ common_responses = {
         "content": {
             "application/json": {
                 "example": {
-                    "error": "NOT_FOUND",
+                    "status": 404,
                     "message": "요청한 리소스를 찾을 수 없습니다",
-                    "timestamp": "2025-08-09T12:00:00Z",
+                    "data": None,
                 }
             }
         },
@@ -123,13 +123,14 @@ common_responses = {
         "content": {
             "application/json": {
                 "example": {
-                    "error": "VALIDATION_ERROR",
+                    "status": 422,
                     "message": "입력 데이터 검증에 실패했습니다",
-                    "details": {
-                        "field": "symbol",
-                        "message": "심볼은 필수 입력값입니다",
+                    "data": {
+                        "details": {
+                            "field": "symbol",
+                            "message": "심볼은 필수 입력값입니다",
+                        }
                     },
-                    "timestamp": "2025-08-09T12:00:00Z",
                 }
             }
         },
@@ -139,11 +140,40 @@ common_responses = {
         "content": {
             "application/json": {
                 "example": {
-                    "error": "INTERNAL_SERVER_ERROR",
+                    "status": 500,
                     "message": "서버에서 오류가 발생했습니다",
-                    "timestamp": "2025-08-09T12:00:00Z",
+                    "data": None,
                 }
             }
         },
     },
+}
+
+# 성공 응답 예시
+success_response_example = {
+    "status": 200,
+    "message": "성공적으로 처리되었습니다",
+    "data": {
+        "example": "응답 데이터"
+    }
+}
+
+# 페이징 응답 예시
+paginated_response_example = {
+    "status": 200,
+    "message": "조회가 완료되었습니다",
+    "data": {
+        "items": [
+            {"id": 1, "name": "예시 항목 1"},
+            {"id": 2, "name": "예시 항목 2"}
+        ],
+        "pagination": {
+            "page": 1,
+            "size": 10,
+            "total": 100,
+            "total_pages": 10,
+            "has_next": True,
+            "has_prev": False
+        }
+    }
 }

@@ -74,7 +74,26 @@ def get_ml_handler() -> MLPredictionHandler:
     summary="모델 훈련",
     description="새로운 LSTM 모델을 훈련합니다. 기존 모델이 있는 경우 force_retrain=true로 강제 재훈련할 수 있습니다.",
     responses={
-        201: {"description": "모델 훈련 성공"},
+        201: {
+            "description": "모델 훈련 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "^GSPC 모델 훈련이 성공적으로 시작되었습니다",
+                        "data": {
+                            "task_id": "train_20250813_133000",
+                            "symbol": "^GSPC",
+                            "training_days": 1000,
+                            "validation_split": 0.2,
+                            "model_version": "v1.0.0",
+                            "estimated_duration": "30분",
+                            "status": "training_started"
+                        }
+                    }
+                }
+            },
+        },
         409: {"description": "모델이 이미 존재함"},
         500: {"description": "훈련 실패"},
         503: {"description": "서비스 사용 불가"},
@@ -116,7 +135,32 @@ async def train_model(
     summary="가격 예측",
     description="지정된 심볼의 7일, 14일, 30일 후 가격을 예측합니다.",
     responses={
-        200: {"description": "예측 성공"},
+        200: {
+            "description": "예측 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "^GSPC 가격 예측이 완료되었습니다",
+                        "data": {
+                            "symbol": "^GSPC",
+                            "predictions": {
+                                "7d": 4850.25,
+                                "14d": 4875.50,
+                                "30d": 4920.75
+                            },
+                            "confidence_scores": {
+                                "7d": 0.85,
+                                "14d": 0.78,
+                                "30d": 0.72
+                            },
+                            "model_version": "v1.0.0",
+                            "prediction_date": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        },
         404: {"description": "활성 모델 없음"},
         500: {"description": "예측 실패"},
         503: {"description": "서비스 사용 불가"},
@@ -157,7 +201,30 @@ async def predict_prices(
     status_code=status.HTTP_200_OK,
     summary="서비스 상태 조회",
     description="ML 예측 서비스의 현재 상태를 조회합니다.",
-    responses={200: {"description": "상태 조회 성공"}},
+    responses={
+        200: {
+            "description": "상태 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "ML 예측 서비스 상태 조회 완료",
+                        "data": {
+                            "service_status": "healthy",
+                            "active_models": ["^GSPC", "^IXIC"],
+                            "model_versions": {
+                                "^GSPC": "v1.0.0",
+                                "^IXIC": "v1.0.0"
+                            },
+                            "last_training": "2025-08-13T10:00:00Z",
+                            "total_predictions": 1250,
+                            "average_accuracy": 0.78
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
 async def get_service_status(
     handler: MLPredictionHandler = Depends(get_ml_handler),
@@ -181,7 +248,24 @@ async def get_service_status(
     summary="헬스 체크",
     description="서비스의 기본적인 헬스 체크를 수행합니다.",
     responses={
-        200: {"description": "서비스 정상"},
+        200: {
+            "description": "서비스 정상",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "ML 예측 서비스가 정상적으로 작동 중입니다",
+                        "data": {
+                            "status": "healthy",
+                            "service": "ml-prediction-api",
+                            "timestamp": "2025-08-13T13:30:00Z",
+                            "version": "1.0.0",
+                            "dependencies": "installed"
+                        }
+                    }
+                }
+            },
+        },
         503: {"description": "서비스 이상"},
     },
 )
@@ -208,14 +292,6 @@ async def health_check() -> ApiResponse:
     except Exception as e:
         logger.error("health_check_failed", error=str(e))
         handle_service_error(e, "ML 예측 서비스 헬스 체크 실패")
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "status": "unhealthy",
-                "service": "ml-prediction-api",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat(),
-            },
-        )
 
 
 @router.get(
@@ -223,6 +299,44 @@ async def health_check() -> ApiResponse:
     status_code=status.HTTP_200_OK,
     summary="시스템 정보",
     description="ML 예측 시스템의 정보를 제공합니다.",
+    responses={
+        200: {
+            "description": "시스템 정보 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "ML 예측 시스템 정보 조회 완료",
+                        "data": {
+                            "system": "ML Prediction System",
+                            "version": "1.0.0",
+                            "status": "production_ready",
+                            "features": {
+                                "model_training": "ready",
+                                "price_prediction": "ready",
+                                "model_evaluation": "ready",
+                                "backtesting": "ready"
+                            },
+                            "dependencies": {
+                                "tensorflow": "installed",
+                                "scikit-learn": "installed",
+                                "pandas": "installed",
+                                "numpy": "installed"
+                            },
+                            "endpoints": [
+                                "POST /train - 모델 훈련",
+                                "POST /predict - 가격 예측",
+                                "GET /status - 서비스 상태",
+                                "GET /health - 헬스 체크"
+                            ],
+                            "note": "All ML functionality is now available",
+                            "timestamp": "2025-08-13T13:30:00Z"
+                        }
+                    }
+                }
+            },
+        }
+    },
 )
 async def get_system_info() -> ApiResponse:
     """

@@ -41,7 +41,38 @@ def safe_df_to_dict(df: pd.DataFrame) -> dict:
         **common_responses,
         200: {
             "description": "심볼 목록을 성공적으로 조회했습니다.",
-            "model": ApiResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": 200,
+                        "message": "심볼 목록 조회가 완료되었습니다",
+                        "data": {
+                            "items": [
+                                {
+                                    "symbol": "AAPL",
+                                    "company_name": "Apple Inc.",
+                                    "country": "US",
+                                    "sector": "Technology"
+                                },
+                                {
+                                    "symbol": "MSFT",
+                                    "company_name": "Microsoft Corporation",
+                                    "country": "US",
+                                    "sector": "Technology"
+                                }
+                            ],
+                            "pagination": {
+                                "page": 1,
+                                "size": 10,
+                                "total": 100,
+                                "total_pages": 10,
+                                "has_next": True,
+                                "has_prev": False
+                            }
+                        }
+                    }
+                }
+            },
         },
     },
 )
