@@ -47,12 +47,13 @@ from app.common.services.background_tasks import (
     run_historical_data_collection_background,
     run_technical_analysis_batch_background,
 )
-from app.scheduler.scheduler_runner import (
-    run_daily_index_analysis,
-    run_outcome_tracking_update,
-    initialize_recent_signals_tracking,
-    run_pattern_discovery,
-)
+# 순차 스케줄러 함수들 import (주석 처리)
+# from app.scheduler.scheduler_runner import (
+#     run_daily_index_analysis,
+#     run_outcome_tracking_update,
+#     initialize_recent_signals_tracking,
+#     run_pattern_discovery,
+# )
 
 logger = get_logger("parallel_scheduler")
 
@@ -472,13 +473,13 @@ def start_parallel_scheduler():
         minutes=3,
     )
 
-    # 기존 기술적 지표 모니터링 작업들도 3분마다
-    scheduler.add_job(run_daily_index_analysis, "interval", minutes=3)
-    scheduler.add_job(run_outcome_tracking_update, "interval", minutes=3)
-    scheduler.add_job(initialize_recent_signals_tracking, "interval", minutes=3)
+    # 기존 기술적 지표 모니터링 작업들도 3분마다 (순차 스케줄러 함수들 - 주석 처리)
+    # scheduler.add_job(run_daily_index_analysis, "interval", minutes=3)
+    # scheduler.add_job(run_outcome_tracking_update, "interval", minutes=3)
+    # scheduler.add_job(initialize_recent_signals_tracking, "interval", minutes=3)
 
-    # 패턴 발견 및 분석도 3분마다
-    scheduler.add_job(run_pattern_discovery, "interval", minutes=3)
+    # 패턴 발견 및 분석도 3분마다 (순차 스케줄러 함수들 - 주석 처리)
+    # scheduler.add_job(run_pattern_discovery, "interval", minutes=3)
 
     # 일일 종합 분석 리포트도 3분마다
     scheduler.add_job(run_daily_comprehensive_report, "interval", minutes=3)
