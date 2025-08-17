@@ -3,10 +3,15 @@ from app.common.utils.translate_to_korean import translate_to_korean
 from app.common.utils.telegram_notifier import send_news_telegram_message
 from app.news_crawler.infra.model.entity.content import Content
 from app.news_crawler.infra.model.entity.content_translations import ContentTranslation
+from app.news_crawler.infra.model.entity.content_sentiments import ContentSentiment
 from app.news_crawler.infra.model.repository.content_repository import ContentRepository
 from app.news_crawler.infra.model.repository.content_translation_repository import (
     ContentTranslationRepository,
 )
+from app.news_crawler.infra.model.repository.content_sentiment_repository import (
+    ContentSentimentRepository,
+)
+from app.news_crawler.service.sentiment_analyzer import SentimentAnalyzer
 
 
 class NewsProcessor:
@@ -15,6 +20,8 @@ class NewsProcessor:
         self.session = None
         self.content_repo = None
         self.translation_repo = None
+        self.sentiment_repo = None
+        self.sentiment_analyzer = SentimentAnalyzer()
         self.telegram_enabled = telegram_enabled  # 텔레그램 알림 선택적 활성화
 
     def _get_session_and_repos(self):
@@ -23,7 +30,8 @@ class NewsProcessor:
             self.session = SessionLocal()
             self.content_repo = ContentRepository(self.session)
             self.translation_repo = ContentTranslationRepository(self.session)
-        return self.session, self.content_repo, self.translation_repo
+            self.sentiment_repo = ContentSentimentRepository(self.session)
+        return self.session, self.content_repo, self.translation_repo, self.sentiment_repo
 
     def __del__(self):
         """소멸자에서 세션 정리"""
@@ -31,9 +39,9 @@ class NewsProcessor:
             self.session.close()
 
     def run(self):
-        """뉴스 데이터베이스 저장만 수행 (텔레그램 전송 제외)"""
+        """뉴스 데이터베이스 저장 및 감정분석 수행"""
         try:
-            session, content_repo, translation_repo = self._get_session_and_repos()
+            session, content_repo, translation_repo, sentiment_repo = self._get_session_and_repos()
 
             for item in self.news_items:
                 try:
@@ -42,6 +50,7 @@ class NewsProcessor:
 
                     content = self._save_content(item)
                     title_ko, summary_ko, symbol = self._save_translation(content)
+                    self._save_sentiment(content)
                     
                     # 텔레그램 전송 (선택적)
                     if self.telegram_enabled:
@@ -64,14 +73,14 @@ class NewsProcessor:
                 self.session.close()
 
     def _is_duplicate(self, item: dict) -> bool:
-        session, content_repo, translation_repo = self._get_session_and_repos()
+        session, content_repo, translation_repo, sentiment_repo = self._get_session_and_repos()
         if content_repo.exists_by_hash(item["content_hash"]):
             print(f"🔁 중복 스킵: {item['title']}")
             return True
         return False
 
     def _save_content(self, item: dict) -> Content:
-        session, content_repo, translation_repo = self._get_session_and_repos()
+        session, content_repo, translation_repo, sentiment_repo = self._get_session_and_repos()
         content = Content(
             symbol=item["symbol"],
             title=item["title"],
@@ -87,8 +96,8 @@ class NewsProcessor:
         session.flush()
         return content
 
-    def _save_translation(self, content: Content) -> tuple[str, str | None]:  # ✅ 수정
-        session, content_repo, translation_repo = self._get_session_and_repos()
+    def _save_translation(self, content: Content) -> tuple[str, str | None, str]:
+        session, content_repo, translation_repo, sentiment_repo = self._get_session_and_repos()
         title_ko = translate_to_korean(content.title)
         summary_ko = translate_to_korean(content.summary) if content.summary else None
         symbol = content.symbol
@@ -101,9 +110,51 @@ class NewsProcessor:
             published_at=content.published_at,
         )
         translation_repo.save(translation)
-        session.flush()  # 세션 플러시 추가
-        print(f"✅ 저장 완료: {content.title} → {title_ko}")
-        return title_ko, summary_ko, symbol  # ✅ 번역 결과 반환
+        session.flush()
+        print(f"✅ 번역 완료: {content.title} → {title_ko}")
+        return title_ko, summary_ko, symbol
+
+    def _save_sentiment(self, content: Content):
+        """뉴스 콘텐츠의 감정분석 결과 저장"""
+        session, content_repo, translation_repo, sentiment_repo = self._get_session_and_repos()
+        
+        # 이미 감정분석이 완료된 경우 스킵
+        if sentiment_repo.exists_by_content_id(content.id):
+            print(f"🔁 감정분석 중복 스킵: {content.title}")
+            return
+        
+        try:
+            # 제목과 요약을 결합하여 감정분석 수행
+            text_for_analysis = content.title
+            if content.summary:
+                text_for_analysis += " " + content.summary
+            
+            # 감정분석 수행
+            sentiment_result = self.sentiment_analyzer.analyze_sentiment(text_for_analysis)
+            
+            # 감정분석 결과 저장
+            sentiment = ContentSentiment(
+                content_id=content.id,
+                sentiment_score=sentiment_result['sentiment_score'],
+                sentiment_label=sentiment_result['sentiment_label'],
+                confidence=sentiment_result['confidence'],
+                positive_score=sentiment_result['positive_score'],
+                negative_score=sentiment_result['negative_score'],
+                neutral_score=sentiment_result['neutral_score'],
+                compound_score=sentiment_result['compound_score'],
+                market_impact_score=sentiment_result['market_impact_score'],
+                is_market_sensitive=sentiment_result['is_market_sensitive'],
+                analyzer_type="vader"
+            )
+            
+            sentiment_repo.save(sentiment)
+            session.flush()
+            
+            print(f"✅ 감정분석 완료: {content.title} → {sentiment_result['sentiment_label']} ({sentiment_result['sentiment_score']:.3f})")
+            
+        except Exception as e:
+            print(f"❌ 감정분석 실패: {content.title} - {str(e)}")
+            # 감정분석 실패해도 다른 처리는 계속 진행
 
     def _send_notification(
         self, content: Content, title_ko: str, summary_ko: str, symbol: str
