@@ -152,7 +152,7 @@ class HealthChecker:
 
         try:
             # 텔레그램 봇 API 테스트
-            url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/getMe"
+            url = f"https://api.telegram.org/bot{settings.telegram.bot_token}/getMe"
 
             # 비동기 HTTP 요청 시뮬레이션
             await asyncio.sleep(0.1)
@@ -166,8 +166,8 @@ class HealthChecker:
                 duration_ms=duration_ms,
                 timestamp=datetime.now(),
                 details={
-                    "bot_token_configured": bool(settings.telegram_bot_token),
-                    "chat_id_configured": bool(settings.telegram_chat_id),
+                    "bot_token_configured": bool(settings.telegram.bot_token),
+                    "chat_id_configured": bool(settings.telegram.chat_id),
                 },
             )
 

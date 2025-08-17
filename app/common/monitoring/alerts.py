@@ -218,11 +218,11 @@ class AlertManager:
 
             # 텔레그램 API 호출
             url = (
-                f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+                f"https://api.telegram.org/bot{settings.telegram.bot_token}/sendMessage"
             )
 
             payload = {
-                "chat_id": settings.telegram_chat_id,
+                "chat_id": settings.telegram.chat_id,
                 "text": message,
                 "parse_mode": "Markdown",
                 "disable_web_page_preview": True,
