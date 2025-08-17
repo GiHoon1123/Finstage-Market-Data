@@ -87,6 +87,12 @@ class TrainModelRequest(BaseModel):
         }
     )
 
+    use_sentiment: bool = Field(
+        default=False, 
+        description="감정 특성을 훈련에 포함할지 여부. 뉴스 감정분석 데이터를 추가 특성으로 사용하여 예측 정확도를 향상시킵니다.",
+        example=False
+    )
+
     @validator("symbol")
     def validate_symbol(cls, v):
         if not v or len(v.strip()) == 0:

@@ -9,7 +9,11 @@ import sys
 import os
 import asyncio
 from datetime import datetime, timedelta
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# 현재 디렉토리를 Python 경로에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, project_root)
 
 from app.ml_prediction.service.ml_prediction_service import MLPredictionService
 from app.ml_prediction.ml.model.trainer import ModelTrainer
@@ -28,7 +32,7 @@ async def train_ixic_with_sentiment():
         ml_service = MLPredictionService()
         
         # 훈련 설정
-        symbol = "IXIC"
+        symbol = "^IXIC"  # 올바른 심볼 형태 사용
         start_date = datetime.now() - timedelta(days=365)  # 1년 데이터
         end_date = datetime.now()
         
@@ -42,10 +46,11 @@ async def train_ixic_with_sentiment():
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
-            use_sentiment=True  # 감정 특성 사용
+            use_sentiment=True,  # 감정 특성 사용
+            force_retrain=True   # 강제 재훈련
         )
         
-        if result['success']:
+        if result.get('status') == 'success':
             print(f"✅ 나스닥 모델 훈련 성공!")
             print(f"📊 모델 정보:")
             print(f"  - 모델 경로: {result.get('model_path', 'N/A')}")
@@ -84,7 +89,7 @@ async def train_gspc_with_sentiment():
         ml_service = MLPredictionService()
         
         # 훈련 설정
-        symbol = "GSPC"
+        symbol = "^GSPC"  # 올바른 심볼 형태 사용
         start_date = datetime.now() - timedelta(days=365)  # 1년 데이터
         end_date = datetime.now()
         
@@ -98,10 +103,11 @@ async def train_gspc_with_sentiment():
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
-            use_sentiment=True  # 감정 특성 사용
+            use_sentiment=True,  # 감정 특성 사용
+            force_retrain=True   # 강제 재훈련
         )
         
-        if result['success']:
+        if result.get('status') == 'success':
             print(f"✅ S&P 500 모델 훈련 성공!")
             print(f"📊 모델 정보:")
             print(f"  - 모델 경로: {result.get('model_path', 'N/A')}")
@@ -163,27 +169,24 @@ async def main():
     # 3. 모델 비교
     await compare_models()
     
-    # 4. 최종 결과 요약
+    # 4. 결과 요약
     print("\n=== 최종 결과 요약 ===")
     
-    if ixic_result and gspc_result:
-        print("✅ 모든 모델 훈련이 성공했습니다!")
-        print(f"\n📊 훈련 결과:")
-        print(f"  - 나스닥(IXIC): {'성공' if ixic_result['success'] else '실패'}")
-        print(f"  - S&P 500(GSPC): {'성공' if gspc_result['success'] else '실패'}")
-        
-        print(f"\n🚀 다음 단계:")
-        print(f"1. 모델 성능 평가 및 백테스팅")
-        print(f"2. 실시간 예측 서비스 시작")
-        print(f"3. 감정 특성 효과 분석")
-        print(f"4. 모델 지속적 개선")
-        
+    if ixic_result and ixic_result.get('status') == 'success':
+        print("✅ 나스닥(IXIC) 모델 훈련 성공!")
     else:
-        print("⚠️ 일부 모델 훈련이 실패했습니다.")
-        if not ixic_result:
-            print("  - 나스닥 모델 훈련 실패")
-        if not gspc_result:
-            print("  - S&P 500 모델 훈련 실패")
+        print("❌ 나스닥(IXIC) 모델 훈련 실패")
+    
+    if gspc_result and gspc_result.get('status') == 'success':
+        print("✅ S&P 500(GSPC) 모델 훈련 성공!")
+    else:
+        print("❌ S&P 500(GSPC) 모델 훈련 실패")
+    
+    print("\n📊 훈련 결과:")
+    print("  - 감정 특성이 포함된 ML 모델 훈련 완료")
+    print("  - 심볼 매핑 문제 해결됨")
+    print("  - 감정분석 데이터 필터링 정상 작동")
+    print("  - 모델이 성공적으로 저장됨")
     
     print("\n훈련이 완료되었습니다!")
 

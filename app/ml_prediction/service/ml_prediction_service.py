@@ -43,6 +43,14 @@ class MLPredictionService:
     ML 예측 시스템의 핵심 비즈니스 로직을 담당합니다.
     """
 
+    # 심볼 매핑 (ML 훈련용 심볼 -> 실제 데이터베이스 심볼)
+    SYMBOL_MAPPING = {
+        "IXIC": "^IXIC",
+        "GSPC": "^GSPC",
+        "^IXIC": "^IXIC",  # 이미 올바른 형태인 경우
+        "^GSPC": "^GSPC",  # 이미 올바른 형태인 경우
+    }
+
     def __init__(self, config=None):
         """
         서비스 초기화
@@ -64,6 +72,24 @@ class MLPredictionService:
             model_storage_path=self.config.storage.base_model_path,
             supported_timeframes=self.config.model.target_days,
         )
+
+    def _normalize_symbol(self, symbol: str) -> str:
+        """
+        심볼 정규화 (ML 훈련용 심볼을 실제 데이터베이스 심볼로 변환)
+        
+        Args:
+            symbol: 원본 심볼
+            
+        Returns:
+            정규화된 심볼
+        """
+        normalized_symbol = self.SYMBOL_MAPPING.get(symbol, symbol)
+        logger.info(
+            "symbol_normalized", 
+            original_symbol=symbol, 
+            normalized_symbol=normalized_symbol
+        )
+        return normalized_symbol
 
     async def train_model(
         self,
@@ -87,9 +113,13 @@ class MLPredictionService:
         Returns:
             훈련 결과
         """
+        # 심볼 정규화
+        normalized_symbol = self._normalize_symbol(symbol)
+        
         logger.info(
             "model_training_started",
-            symbol=symbol,
+            original_symbol=symbol,
+            normalized_symbol=normalized_symbol,
             training_days=training_days,
             validation_split=validation_split,
             force_retrain=force_retrain,
@@ -99,11 +129,11 @@ class MLPredictionService:
         try:
             # 기존 모델 확인
             if not force_retrain:
-                existing_model = await self._check_existing_model(symbol)
+                existing_model = await self._check_existing_model(normalized_symbol)
                 if existing_model:
                     logger.info(
                         "existing_model_found",
-                        symbol=symbol,
+                        symbol=normalized_symbol,
                         model_version=existing_model["model_version"],
                     )
                     return {
@@ -116,7 +146,7 @@ class MLPredictionService:
             training_result = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
                 self._train_model_sync,
-                symbol,
+                normalized_symbol,
                 training_days,
                 validation_split,
                 force_retrain,
@@ -128,7 +158,7 @@ class MLPredictionService:
             # 훈련 후 초기 평가
             if training_result["status"] == "success":
                 evaluation_result = await self.evaluate_model_performance(
-                    symbol=symbol,
+                    symbol=normalized_symbol,
                     model_version=training_result["model_version"],
                     evaluation_days=30,
                 )
@@ -136,7 +166,7 @@ class MLPredictionService:
 
             logger.info(
                 "model_training_completed",
-                symbol=symbol,
+                symbol=normalized_symbol,
                 status=training_result["status"],
                 model_version=training_result.get("model_version"),
             )
@@ -144,7 +174,7 @@ class MLPredictionService:
             return training_result
 
         except Exception as e:
-            logger.error("model_training_failed", symbol=symbol, error=str(e))
+            logger.error("model_training_failed", symbol=normalized_symbol, error=str(e))
             return {
                 "status": "failed",
                 "error": str(e),
@@ -182,6 +212,7 @@ class MLPredictionService:
         prediction_date: Optional[date] = None,
         model_version: Optional[str] = None,
         save_results: bool = True,
+        use_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """
         가격 예측
@@ -191,18 +222,23 @@ class MLPredictionService:
             prediction_date: 예측 기준 날짜 (기본값: 오늘)
             model_version: 사용할 모델 버전 (기본값: 활성 모델)
             save_results: 결과 저장 여부
+            use_sentiment: 감정분석 특성 사용 여부
 
         Returns:
             예측 결과
         """
+        # 심볼 정규화
+        normalized_symbol = self._normalize_symbol(symbol)
         prediction_date = prediction_date or date.today()
 
         logger.info(
             "price_prediction_started",
-            symbol=symbol,
+            original_symbol=symbol,
+            normalized_symbol=normalized_symbol,
             prediction_date=prediction_date,
             model_version=model_version,
             save_results=save_results,
+            use_sentiment=use_sentiment,
         )
 
         try:
@@ -210,20 +246,21 @@ class MLPredictionService:
             prediction_result = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
                 self._predict_prices_sync,
-                symbol,
+                normalized_symbol,
                 prediction_date,
                 model_version,
+                use_sentiment,
             )
 
             # 결과 저장
             if save_results and prediction_result["status"] == "success":
                 await self._save_prediction_results(
-                    symbol, prediction_date, prediction_result
+                    normalized_symbol, prediction_date, prediction_result
                 )
 
             logger.info(
                 "price_prediction_completed",
-                symbol=symbol,
+                symbol=normalized_symbol,
                 prediction_date=prediction_date,
                 status=prediction_result["status"],
                 predictions_count=len(prediction_result.get("predictions", [])),
@@ -234,7 +271,7 @@ class MLPredictionService:
         except Exception as e:
             logger.error(
                 "price_prediction_failed",
-                symbol=symbol,
+                symbol=normalized_symbol,
                 prediction_date=prediction_date,
                 error=str(e),
             )
@@ -245,11 +282,11 @@ class MLPredictionService:
             }
 
     def _predict_prices_sync(
-        self, symbol: str, prediction_date: date, model_version: Optional[str]
+        self, symbol: str, prediction_date: date, model_version: Optional[str], use_sentiment: bool
     ) -> Dict[str, Any]:
         """동기 가격 예측 (스레드 풀에서 실행)"""
         return self.predictor.predict_price(
-            symbol=symbol, prediction_date=prediction_date, model_version=model_version
+            symbol=symbol, prediction_date=prediction_date, model_version=model_version, use_sentiment=use_sentiment
         )
 
     async def _save_prediction_results(

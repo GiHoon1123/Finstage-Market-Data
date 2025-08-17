@@ -95,6 +95,7 @@ class FeatureEngineer:
         data: pd.DataFrame,
         target_column: str = "close",
         include_features: bool = True,
+        symbol: Optional[str] = None,
     ) -> Tuple[np.ndarray, Dict[str, np.ndarray], List[str]]:
         """
         멀티 타임프레임 시계열 시퀀스 생성
@@ -103,6 +104,7 @@ class FeatureEngineer:
             data: 입력 데이터 (날짜 인덱스)
             target_column: 타겟 컬럼명
             include_features: 추가 특성 포함 여부
+            symbol: 심볼 (감정분석 데이터 필터링용)
 
         Returns:
             (X: 특성 시퀀스, y: 타겟 딕셔너리, feature_names: 특성 이름 목록)
@@ -113,6 +115,7 @@ class FeatureEngineer:
             target_column=target_column,
             window_size=self.window_size,
             target_days=self.target_days,
+            symbol=symbol,
         )
 
         if len(data) < self.window_size + max(self.target_days):
@@ -123,7 +126,7 @@ class FeatureEngineer:
 
         # 특성 준비
         if include_features:
-            feature_data = self._prepare_features(data)
+            feature_data = self._prepare_features(data, symbol=symbol)
         else:
             feature_data = data[[target_column]].copy()
 
@@ -138,16 +141,18 @@ class FeatureEngineer:
             X_shape=X.shape,
             y_shapes={k: v.shape for k, v in y_dict.items()},
             feature_count=len(self.feature_columns),
+            symbol=symbol,
         )
 
         return X, y_dict, self.feature_columns
 
-    def _prepare_features(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_features(self, data: pd.DataFrame, symbol: Optional[str] = None) -> pd.DataFrame:
         """
         특성 데이터 준비 및 엔지니어링
 
         Args:
             data: 원본 데이터
+            symbol: 심볼 (감정분석 데이터 필터링용)
 
         Returns:
             엔지니어링된 특성 데이터
@@ -175,8 +180,8 @@ class FeatureEngineer:
         # 6. 롤링 통계 특성
         feature_data = self._add_rolling_features(feature_data)
 
-        # 7. 감정 특성 추가
-        feature_data = self._add_sentiment_features(feature_data)
+        # 7. 감정 특성 추가 (심볼 정보 전달)
+        feature_data = self._add_sentiment_features(feature_data, symbol=symbol)
 
         # 결측치 처리
         feature_data = self._handle_missing_values(feature_data)
@@ -185,6 +190,7 @@ class FeatureEngineer:
 
         logger.info(
             "features_prepared",
+            symbol=symbol,
             original_features=self.original_feature_count,
             engineered_features=self.engineered_feature_count,
             added_features=self.engineered_feature_count - self.original_feature_count,
@@ -374,8 +380,11 @@ class FeatureEngineer:
                 sentiment_df=sentiment_features
             )
             
-            # 감정 특성 컬럼명 저장
+            # 감정 특성 컬럼명을 일관되게 저장 (순서 유지)
             sentiment_columns = self.sentiment_engineer.get_feature_names()
+            
+            # 기존 특성 컬럼에서 감정 특성 제거 후 다시 추가 (순서 보장)
+            self.feature_columns = [col for col in self.feature_columns if col not in sentiment_columns]
             self.feature_columns.extend(sentiment_columns)
             
             logger.info(

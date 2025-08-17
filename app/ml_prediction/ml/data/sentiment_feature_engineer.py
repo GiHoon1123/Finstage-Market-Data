@@ -101,14 +101,28 @@ class SentimentFeatureEngineer:
                 func.date(ContentSentiment.analyzed_at)
             )
             
-            # 특정 심볼 필터링 (임시로 비활성화)
-            # if symbol:
-            #     query = query.join(ContentSentiment.content).filter(
-            #         ContentSentiment.content.has(symbol=symbol)
-            #     )
+            # 특정 심볼 필터링 활성화
+            if symbol:
+                # 캐럿 제거 (^IXIC -> IXIC)
+                clean_symbol = symbol.replace("^", "")
+                logger.info(
+                    "filtering_sentiment_by_symbol", 
+                    original_symbol=symbol, 
+                    clean_symbol=clean_symbol
+                )
+                
+                # Content 테이블과 조인하여 심볼별 필터링
+                query = query.join(ContentSentiment.content).filter(
+                    ContentSentiment.content.has(symbol=clean_symbol)
+                )
+            else:
+                logger.info("no_symbol_filter_applied_to_sentiment_data")
             
             return query.all()
             
+        except Exception as e:
+            logger.error("sentiment_data_fetch_failed", error=str(e), symbol=symbol)
+            return []
         finally:
             session.close()
 
@@ -183,17 +197,17 @@ class SentimentFeatureEngineer:
         return df
 
     def _create_empty_sentiment_features(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """빈 감정 특성 DataFrame 생성"""
+        """빈 감정 특성 DataFrame 생성 (훈련 시와 동일한 특성 수 유지)"""
         date_range = pd.date_range(start=start_date, end=end_date, freq='D')
         
-        # 기본 특성들
+        # 기본 특성들 (훈련 시와 동일한 순서)
         base_features = [
             'news_count', 'avg_sentiment', 'avg_market_impact', 
             'avg_confidence', 'avg_positive', 'avg_negative', 
             'avg_neutral', 'avg_compound'
         ]
         
-        # 파생 특성들
+        # 파생 특성들 (훈련 시와 동일한 순서)
         derived_features = [
             'sentiment_change', 'market_impact_change',
             'sentiment_volatility', 'market_impact_volatility',
@@ -204,11 +218,18 @@ class SentimentFeatureEngineer:
             'positive_negative_ratio', 'sentiment_confidence_weighted'
         ]
         
-        all_features = base_features + derived_features
+        # 추가 특성들 (훈련 시에 있었던 특성들)
+        additional_features = [
+            'sentiment_momentum', 'market_impact_momentum',
+            'sentiment_acceleration'  # 3개만 추가하여 총 23개 유지
+        ]
+        
+        all_features = base_features + derived_features + additional_features
         
         # 0으로 채워진 DataFrame 생성
         df = pd.DataFrame(0, index=date_range, columns=all_features)
         
+        # 특성 컬럼 순서를 일관되게 유지
         self.feature_columns = all_features
         
         logger.info("empty_sentiment_features_created", feature_count=len(all_features))

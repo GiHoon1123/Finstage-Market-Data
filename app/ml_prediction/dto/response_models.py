@@ -125,9 +125,9 @@ class PredictionResult(BaseModel):
 
     target_date: str = Field(..., description="예측 대상 날짜 (ISO 형식)")
 
-    predicted_price: float = Field(..., description="예측 가격")
+    predicted_price: float = Field(..., description="예측 가격 (지수는 포인트, 주식은 달러)")
 
-    current_price: float = Field(..., description="현재 가격")
+    current_price: float = Field(..., description="현재 가격 (지수는 포인트, 주식은 달러)")
 
     price_change_percent: float = Field(..., description="예상 가격 변화율 (%)")
 

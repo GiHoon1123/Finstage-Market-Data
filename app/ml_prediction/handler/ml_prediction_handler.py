@@ -105,6 +105,7 @@ class MLPredictionHandler:
                 training_days=request.training_days,
                 validation_split=request.validation_split,
                 force_retrain=request.force_retrain,
+                use_sentiment=request.use_sentiment,
             )
 
             # 응답 변환
@@ -217,12 +218,13 @@ class MLPredictionHandler:
         )
 
         try:
-            # 비즈니스 로직 호출
+            # 비즈니스 로직 호출 (감정분석 특성 활성화)
             result = await self.ml_service.predict_prices(
                 symbol=request.symbol,
                 prediction_date=request.prediction_date,
                 model_version=request.model_version,
                 save_results=request.save_results,
+                use_sentiment=True  # 감정분석 특성 활성화
             )
 
             if result["status"] == "success":

@@ -76,6 +76,7 @@ class MultiTimeframePredictor:
         prediction_date: date = None,
         model_version: Optional[str] = None,
         save_prediction: bool = True,
+        use_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """
         가격 예측 실행
@@ -85,6 +86,7 @@ class MultiTimeframePredictor:
             prediction_date: 예측 기준 날짜 (기본값: 오늘)
             model_version: 사용할 모델 버전 (기본값: 최신 활성 모델)
             save_prediction: 예측 결과 저장 여부
+            use_sentiment: 감정분석 특성 사용 여부
 
         Returns:
             예측 결과 딕셔너리
@@ -97,6 +99,7 @@ class MultiTimeframePredictor:
             symbol=symbol,
             prediction_date=prediction_date,
             batch_id=batch_id,
+            use_sentiment=use_sentiment,
         )
 
         try:
@@ -126,17 +129,25 @@ class MultiTimeframePredictor:
                 )
                 raise
 
-            # 2. 예측용 데이터 준비
+            # 2. 감정분석 특성 활성화 (스케일러 로드 후)
+            if use_sentiment:
+                self.preprocessor.feature_engineer.use_sentiment_features = True
+                logger.info("sentiment_features_enabled_for_prediction", symbol=symbol)
+            else:
+                self.preprocessor.feature_engineer.use_sentiment_features = False
+                logger.info("sentiment_features_disabled_for_prediction", symbol=symbol)
+
+            # 3. 예측용 데이터 준비
             try:
                 X_pred, data_metadata = self.preprocessor.prepare_prediction_data(
-                    symbol=symbol, end_date=prediction_date
+                    symbol=symbol, end_date=prediction_date, use_sentiment=use_sentiment
                 )
                 logger.debug("prediction_data_prepared", symbol=symbol)
             except Exception as e:
                 logger.error("data_preparation_failed", symbol=symbol, error=str(e))
                 raise
 
-            # 3. 예측 실행
+            # 4. 예측 실행
             try:
                 raw_predictions = model_predictor.predict(X_pred)
                 logger.debug("raw_prediction_completed", symbol=symbol)
@@ -144,7 +155,7 @@ class MultiTimeframePredictor:
                 logger.error("raw_prediction_failed", symbol=symbol, error=str(e))
                 raise
 
-            # 4. 예측 결과 역정규화
+            # 5. 예측 결과 역정규화
             try:
                 denormalized_predictions = (
                     self.preprocessor.feature_engineer.denormalize_predictions(
@@ -156,7 +167,7 @@ class MultiTimeframePredictor:
                 logger.error("denormalization_failed", symbol=symbol, error=str(e))
                 raise
 
-            # 5. 신뢰도 계산
+            # 6. 신뢰도 계산
             try:
                 confidence_scores = self._calculate_confidence_scores(
                     model_predictor, X_pred, raw_predictions
@@ -168,7 +179,7 @@ class MultiTimeframePredictor:
                 )
                 raise
 
-            # 6. 예측 결과 구성
+            # 7. 예측 결과 구성
             current_price = data_metadata.get("last_price", 0.0)
             prediction_results = []
 
@@ -200,10 +211,10 @@ class MultiTimeframePredictor:
 
                 prediction_results.append(prediction_result)
 
-            # 7. 예측 일관성 검증
+            # 8. 예측 일관성 검증
             consistency_score = self._calculate_consistency_score(prediction_results)
 
-            # 8. 최종 예측 결과
+            # 9. 최종 예측 결과
             final_result = {
                 "status": "success",
                 "batch_id": batch_id,
@@ -227,7 +238,7 @@ class MultiTimeframePredictor:
                 "created_at": datetime.now().isoformat(),
             }
 
-            # 9. 예측 결과 저장 (predictor 레벨에서는 비활성화, 서비스 레벨에서 처리)
+            # 10. 예측 결과 저장 (predictor 레벨에서는 비활성화, 서비스 레벨에서 처리)
             # if save_prediction:
             #     try:
             #         self._save_predictions(final_result, model_entity)
@@ -239,7 +250,7 @@ class MultiTimeframePredictor:
             #             error=str(save_error),
             #         )
 
-            # 10. 캐시에 저장
+            # 11. 캐시에 저장
             self.current_predictions[batch_id] = final_result
 
             logger.info(

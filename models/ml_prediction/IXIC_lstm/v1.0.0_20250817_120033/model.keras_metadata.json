@@ -1,0 +1,42 @@
+{
+  "model_name": "IXIC_lstm",
+  "input_shape": [
+    60,
+    175
+  ],
+  "target_days": [
+    7,
+    14,
+    30
+  ],
+  "config": {
+    "lstm_units": [
+      50,
+      50
+    ],
+    "dense_units": [
+      25
+    ],
+    "dropout_rate": 0.2,
+    "activation": "relu",
+    "loss_weights": [
+      0.5,
+      0.3,
+      0.2
+    ]
+  },
+  "created_at": "2025-08-17T12:00:34.226738",
+  "training_metadata": {
+    "training_start_time": "2025-08-17T12:00:34.279653",
+    "training_end_time": "2025-08-17T12:00:57.647460",
+    "training_duration_seconds": 23.367807,
+    "epochs_completed": 61,
+    "final_loss": 0.049419522285461426,
+    "final_val_loss": 0.04996282979846001,
+    "best_epoch": 51,
+    "train_samples": 193,
+    "val_samples": 41,
+    "batch_size": 32
+  },
+  "model_version": null
+}

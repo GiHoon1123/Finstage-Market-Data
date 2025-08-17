@@ -136,7 +136,7 @@ class MLDataPreprocessor:
             logger.info("sentiment_features_enabled_for_training", symbol=symbol)
         
         X, y_dict, feature_names = self.feature_engineer.create_multi_target_sequences(
-            raw_data, target_column=target_column
+            raw_data, target_column=target_column, symbol=symbol
         )
 
         # 5. 정규화
@@ -183,7 +183,7 @@ class MLDataPreprocessor:
         return X_splits, y_splits, metadata
 
     def prepare_prediction_data(
-        self, symbol: str, end_date: date, lookback_days: int = None
+        self, symbol: str, end_date: date, lookback_days: int = None, use_sentiment: bool = False
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         예측용 데이터 준비
@@ -192,6 +192,7 @@ class MLDataPreprocessor:
             symbol: 심볼
             end_date: 마지막 날짜
             lookback_days: 과거 며칠 데이터 사용
+            use_sentiment: 감정분석 특성 사용 여부
 
         Returns:
             (X: 예측용 특성, metadata: 메타데이터) 튜플
@@ -204,13 +205,14 @@ class MLDataPreprocessor:
             symbol=symbol,
             end_date=end_date,
             lookback_days=lookback_days,
+            use_sentiment=use_sentiment,
         )
 
         # 1. 원시 데이터 수집
         raw_data = self._collect_raw_data(symbol, start_date, end_date)
 
-        # 2. 특성 엔지니어링 (타겟 없이)
-        feature_data = self.feature_engineer._prepare_features(raw_data)
+        # 2. 특성 엔지니어링 (타겟 없이, 심볼 정보 전달)
+        feature_data = self.feature_engineer._prepare_features(raw_data, symbol=symbol)
 
         # 최근 window_size만큼의 데이터로 시퀀스 생성
         if len(feature_data) < self.feature_engineer.window_size:
@@ -225,13 +227,42 @@ class MLDataPreprocessor:
             1, self.feature_engineer.window_size, -1
         )  # (1, window_size, features)
 
-        # 3. 정규화 (기존 스케일러 사용)
+        # 4. 정규화 (기존 스케일러 사용)
         if self.feature_engineer.feature_scaler is None:
-            raise ValueError("Feature scaler not fitted. Train model first.")
+            # 스케일러가 로드되지 않은 경우, 모델에서 스케일러를 로드
+            logger.warning("feature_scaler_not_loaded_trying_to_load_from_model", symbol=symbol)
+            
+            # 모델 경로에서 스케일러 로드 시도
+            try:
+                from app.ml_prediction.infra.model.repository.ml_model_repository import MLModelRepository
+                from app.common.infra.database.config.database_config import SessionLocal
+                
+                session = SessionLocal()
+                model_repository = MLModelRepository(session)
+                
+                # 활성 모델 조회
+                model_entity = model_repository.find_active_model("lstm", symbol)
+                
+                if model_entity:
+                    # 스케일러 디렉토리 경로
+                    scaler_dir = os.path.join(os.path.dirname(model_entity.model_path), "scalers")
+                    if os.path.exists(scaler_dir):
+                        self.feature_engineer.load_scalers(scaler_dir)
+                        logger.info("feature_scaler_loaded_from_model", symbol=symbol, scaler_dir=scaler_dir)
+                    else:
+                        raise ValueError(f"Scaler directory not found: {scaler_dir}")
+                else:
+                    raise ValueError(f"No active model found for {symbol}")
+                    
+                session.close()
+                
+            except Exception as e:
+                logger.error("failed_to_load_scaler_from_model", symbol=symbol, error=str(e))
+                raise ValueError(f"Feature scaler not fitted and failed to load from model. Train model first. Error: {str(e)}")
 
         X_normalized = self.feature_engineer.normalize_features(X, fit_scaler=False)
 
-        # 4. 메타데이터
+        # 5. 메타데이터
         metadata = {
             "symbol": symbol,
             "end_date": end_date.isoformat(),
@@ -243,6 +274,7 @@ class MLDataPreprocessor:
                 "start": str(raw_data.index.min()),
                 "end": str(raw_data.index.max()),
             },
+            "sentiment_features_enabled": self.feature_engineer.use_sentiment_features,
         }
 
         logger.info(
@@ -250,6 +282,7 @@ class MLDataPreprocessor:
             symbol=symbol,
             features=X.shape[-1],
             last_price=metadata["last_price"],
+            sentiment_features_enabled=self.feature_engineer.use_sentiment_features,
         )
 
         return X_normalized, metadata
