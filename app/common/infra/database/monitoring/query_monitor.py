@@ -105,7 +105,19 @@ class QueryMonitor:
 
             # 슬로우 쿼리 감지
             if duration > self.slow_query_threshold:
-                self._handle_slow_query(statement, duration, parameters, affected_rows)
+                # 비동기 함수를 동기적으로 실행
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # 이미 실행 중인 루프가 있으면 백그라운드 태스크로 실행
+                        asyncio.create_task(self._handle_slow_query(statement, duration, parameters, affected_rows))
+                    else:
+                        # 루프가 없으면 새로 실행
+                        loop.run_until_complete(self._handle_slow_query(statement, duration, parameters, affected_rows))
+                except RuntimeError:
+                    # 루프가 없는 경우 새로 생성
+                    asyncio.run(self._handle_slow_query(statement, duration, parameters, affected_rows))
 
             # Prometheus 메트릭 기록
             table_name = self._extract_table_name(statement)
