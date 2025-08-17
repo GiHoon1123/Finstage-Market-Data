@@ -2,6 +2,7 @@ from sqlalchemy import Column, BigInteger, String, Float, DateTime, ForeignKey, 
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.common.infra.database.config.database_config import Base
+from app.news_crawler.infra.model.entity.content import Content
 
 
 class ContentSentiment(Base):
@@ -38,7 +39,7 @@ class ContentSentiment(Base):
     analyzed_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="분석 시각")
     
     # 관계 설정
-    content = relationship("Content", backref="sentiments")
+    content = relationship("Content", backref="sentiments", lazy="joined")
 
     def __repr__(self):
         return f"<ContentSentiment(content_id={self.content_id}, sentiment={self.sentiment_label}, score={self.sentiment_score:.3f})>"

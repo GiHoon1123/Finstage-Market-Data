@@ -71,6 +71,9 @@ class MLPredictionService:
         training_days: int = 1000,
         validation_split: float = 0.2,
         force_retrain: bool = False,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        use_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """
         모델 훈련
@@ -90,6 +93,7 @@ class MLPredictionService:
             training_days=training_days,
             validation_split=validation_split,
             force_retrain=force_retrain,
+            use_sentiment=use_sentiment,
         )
 
         try:
@@ -116,6 +120,9 @@ class MLPredictionService:
                 training_days,
                 validation_split,
                 force_retrain,
+                start_date,
+                end_date,
+                use_sentiment,
             )
 
             # 훈련 후 초기 평가
@@ -150,18 +157,23 @@ class MLPredictionService:
         training_days: int,
         validation_split: float,
         force_retrain: bool = False,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        use_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """동기 모델 훈련 (스레드 풀에서 실행)"""
         from datetime import date, timedelta
 
-        end_date = date.today()
-        start_date = end_date - timedelta(days=training_days)
+        if start_date is None or end_date is None:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=training_days)
 
         return self.trainer.train_model(
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
             force_retrain=force_retrain,
+            use_sentiment=use_sentiment,
         )
 
     async def predict_prices(

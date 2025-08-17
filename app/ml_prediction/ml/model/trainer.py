@@ -91,6 +91,7 @@ class ModelTrainer:
         model_version: Optional[str] = None,
         save_model: bool = True,
         force_retrain: bool = False,
+        use_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """
         모델 훈련 실행
@@ -137,6 +138,7 @@ class ModelTrainer:
                 start_date=start_date,
                 end_date=end_date,
                 force_refresh=force_retrain,
+                use_sentiment=use_sentiment,
             )
 
             # 2. 모델 생성 및 구성

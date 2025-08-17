@@ -37,6 +37,7 @@ import os
 
 from app.ml_prediction.config.ml_config import ml_settings
 from app.common.utils.logging_config import get_logger
+from app.ml_prediction.ml.data.sentiment_feature_engineer import SentimentFeatureEngineer
 
 logger = get_logger(__name__)
 
@@ -77,6 +78,10 @@ class FeatureEngineer:
         self.feature_columns = []
         self.original_feature_count = 0
         self.engineered_feature_count = 0
+        
+        # 감정 특성 엔지니어 초기화
+        self.sentiment_engineer = SentimentFeatureEngineer()
+        self.use_sentiment_features = True  # 감정 특성 사용 여부
 
         logger.info(
             "feature_engineer_initialized",
@@ -169,6 +174,9 @@ class FeatureEngineer:
 
         # 6. 롤링 통계 특성
         feature_data = self._add_rolling_features(feature_data)
+
+        # 7. 감정 특성 추가
+        feature_data = self._add_sentiment_features(feature_data)
 
         # 결측치 처리
         feature_data = self._handle_missing_values(feature_data)
@@ -340,6 +348,48 @@ class FeatureEngineer:
                 )
 
         return data
+
+    def _add_sentiment_features(self, data: pd.DataFrame, symbol: Optional[str] = None) -> pd.DataFrame:
+        """감정 특성 추가"""
+        
+        if not self.use_sentiment_features:
+            logger.info("sentiment_features_disabled")
+            return data
+        
+        try:
+            # 데이터의 날짜 범위 확인
+            start_date = data.index.min()
+            end_date = data.index.max()
+            
+            # 감정 특성 생성
+            sentiment_features = self.sentiment_engineer.get_sentiment_features(
+                start_date=start_date,
+                end_date=end_date,
+                symbol=symbol
+            )
+            
+            # 가격 데이터와 감정 데이터 병합
+            data_with_sentiment = self.sentiment_engineer.merge_with_price_data(
+                price_df=data,
+                sentiment_df=sentiment_features
+            )
+            
+            # 감정 특성 컬럼명 저장
+            sentiment_columns = self.sentiment_engineer.get_feature_names()
+            self.feature_columns.extend(sentiment_columns)
+            
+            logger.info(
+                "sentiment_features_added",
+                symbol=symbol,
+                sentiment_features=len(sentiment_columns),
+                total_features=len(data_with_sentiment.columns)
+            )
+            
+            return data_with_sentiment
+            
+        except Exception as e:
+            logger.error("sentiment_features_add_failed", error=str(e), symbol=symbol)
+            return data
 
     def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
         """RSI 계산"""

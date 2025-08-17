@@ -84,6 +84,7 @@ class MLDataPreprocessor:
         end_date: date,
         target_column: str = "close",
         force_refresh: bool = False,
+        use_sentiment: bool = False,
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Dict[str, np.ndarray]], Dict[str, Any]]:
         """
         훈련 데이터 준비
@@ -129,6 +130,11 @@ class MLDataPreprocessor:
             raise ValueError(f"Data quality validation failed for {symbol}")
 
         # 4. 특성 엔지니어링
+        # 감정 특성 사용 설정
+        if use_sentiment:
+            self.feature_engineer.use_sentiment_features = True
+            logger.info("sentiment_features_enabled_for_training", symbol=symbol)
+        
         X, y_dict, feature_names = self.feature_engineer.create_multi_target_sequences(
             raw_data, target_column=target_column
         )
