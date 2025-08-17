@@ -204,9 +204,9 @@ class InvestingNewsCrawler(BaseCrawler):
             return []
 
     @memory_monitor
-    def process_all(self):
+    def process_all(self, telegram_enabled: bool = False):
         results = self.crawl()
-        processor = NewsProcessor(results)
+        processor = NewsProcessor(results, telegram_enabled=telegram_enabled)
         processor.run()
 
     @memory_monitor

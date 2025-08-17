@@ -207,14 +207,14 @@ class YahooNewsCrawler(BaseCrawler):
             return []
 
     @memory_monitor
-    def process_all(self):
+    def process_all(self, telegram_enabled: bool = False):
         try:
             results = self.crawl()
             if not results:
                 print(f"⚠️ {self.symbol} 뉴스 없음")
                 return None
 
-            processor = NewsProcessor(results)
+            processor = NewsProcessor(results, telegram_enabled=telegram_enabled)
             processor.run()
             return True
         except Exception as e:

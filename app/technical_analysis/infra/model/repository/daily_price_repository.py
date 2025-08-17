@@ -331,6 +331,54 @@ class DailyPriceRepository:
             print(f"❌ 데이터 삭제 실패: {e}")
             return False
 
+    def save_daily_price(
+        self,
+        symbol: str,
+        date: datetime,
+        open_price: float,
+        high_price: float,
+        low_price: float,
+        close_price: float,
+        volume: float
+    ) -> Optional[DailyPrice]:
+        """
+        일봉 데이터 저장 (편의 메서드)
+
+        Args:
+            symbol: 심볼
+            date: 날짜
+            open_price: 시가
+            high_price: 고가
+            low_price: 저가
+            close_price: 종가
+            volume: 거래량
+
+        Returns:
+            저장된 엔티티 또는 None
+        """
+        try:
+            # 날짜를 date 객체로 변환
+            if isinstance(date, datetime):
+                date = date.date()
+            
+            # DailyPrice 엔티티 생성
+            daily_price = DailyPrice(
+                symbol=symbol,
+                date=date,
+                open_price=open_price,
+                high_price=high_price,
+                low_price=low_price,
+                close_price=close_price,
+                volume=volume
+            )
+            
+            # 저장
+            return self.save(daily_price)
+            
+        except Exception as e:
+            print(f"❌ {symbol} 일봉 데이터 저장 실패: {e}")
+            return None
+
     def delete_old_data(self, symbol: str, keep_days: int = 365) -> int:
         """
         오래된 데이터 삭제 (용량 관리용)

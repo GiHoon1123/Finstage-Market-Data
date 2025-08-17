@@ -222,7 +222,7 @@ def run_yahoo_macro_news_parallel():
     def process_symbol(symbol):
         logger.debug("processing_symbol", source="yahoo_macro", symbol=symbol)
         crawler = YahooNewsCrawler(symbol)
-        result = crawler.process_all()
+        result = crawler.process_all(telegram_enabled=True)  # 텔레그램 활성화
         return result
 
     # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
@@ -251,7 +251,7 @@ def run_investing_macro_news_parallel():
     def process_symbol(symbol):
         logger.debug("processing_symbol", source="investing_macro", symbol=symbol)
         crawler = InvestingNewsCrawler(symbol)
-        result = crawler.process_all()
+        result = crawler.process_all(telegram_enabled=True)  # 텔레그램 활성화
         return result
 
     # 병렬 실행 (API 제한 고려하여 약간의 지연 추가)
@@ -268,6 +268,9 @@ def run_investing_macro_news_parallel():
         total_count=len(INVESTING_MACRO_SYMBOLS),
         success_rate=success_count / len(INVESTING_MACRO_SYMBOLS),
     )
+
+
+
 
 
 @measure_execution_time
@@ -467,7 +470,9 @@ def run_ml_training_data_collection_parallel():
         from app.common.constants.symbol_names import ML_TRAINING_SYMBOLS
         
         client = YahooPriceClient()
-        repository = DailyPriceRepository()
+        from app.common.infra.database.config.database_config import SessionLocal
+        session = SessionLocal()
+        repository = DailyPriceRepository(session)
         
         successful_symbols = 0
         total_records = 0
@@ -514,6 +519,9 @@ def run_ml_training_data_collection_parallel():
     except Exception as e:
         logger.error("ml_training_data_collection_failed", error=str(e))
         return None
+    finally:
+        if 'session' in locals():
+            session.close()
 
 
 @memory_monitor()
@@ -557,6 +565,13 @@ def start_parallel_scheduler():
     )  # 가격 모니터링 3분마다
 
     # 스냅샷 작업들도 3분마다 활성화
+    
+                        # ML 훈련 데이터 수집 제거 (가격 데이터는 나스닥과 S&P500만 필요)
+                    # scheduler.add_job(
+                    #     run_ml_training_data_collection_parallel, "interval", minutes=3
+                    # )  # ML 훈련 데이터 수집 3분마다
+                    
+
     scheduler.add_job(
         run_previous_close_snapshot_job_parallel, "interval", minutes=3
     )  # 전일 종가 스냅샷 3분마다

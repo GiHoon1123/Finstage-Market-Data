@@ -10,12 +10,12 @@ from app.news_crawler.infra.model.repository.content_translation_repository impo
 
 
 class NewsProcessor:
-    def __init__(self, news_items: list[dict]):
+    def __init__(self, news_items: list[dict], telegram_enabled: bool = False):
         self.news_items = news_items
         self.session = None
         self.content_repo = None
         self.translation_repo = None
-        self.telegram_enabled = True  # 텔레그램 알림 기본 활성화
+        self.telegram_enabled = telegram_enabled  # 텔레그램 알림 선택적 활성화
 
     def _get_session_and_repos(self):
         """세션과 리포지토리 지연 초기화"""
@@ -31,16 +31,28 @@ class NewsProcessor:
             self.session.close()
 
     def run(self):
+        """뉴스 데이터베이스 저장만 수행 (텔레그램 전송 제외)"""
         try:
             session, content_repo, translation_repo = self._get_session_and_repos()
 
             for item in self.news_items:
-                if self._is_duplicate(item):
-                    continue
+                try:
+                    if self._is_duplicate(item):
+                        continue
 
-                content = self._save_content(item)
-                title_ko, summary_ko, symbol = self._save_translation(content)
-                self._send_notification(content, title_ko, summary_ko, symbol)
+                    content = self._save_content(item)
+                    title_ko, summary_ko, symbol = self._save_translation(content)
+                    
+                    # 텔레그램 전송 (선택적)
+                    if self.telegram_enabled:
+                        try:
+                            self._send_notification(content, title_ko, summary_ko, symbol)
+                        except Exception as telegram_error:
+                            print(f"⚠️ 텔레그램 전송 실패 (저장은 성공): {telegram_error}")
+                            # 텔레그램 실패해도 저장은 계속 진행
+                except Exception as item_error:
+                    print(f"❌ 개별 뉴스 처리 실패: {item_error}")
+                    continue  # 개별 뉴스 실패해도 계속 진행
 
             session.commit()
         except Exception as e:
@@ -89,6 +101,7 @@ class NewsProcessor:
             published_at=content.published_at,
         )
         translation_repo.save(translation)
+        session.flush()  # 세션 플러시 추가
         print(f"✅ 저장 완료: {content.title} → {title_ko}")
         return title_ko, summary_ko, symbol  # ✅ 번역 결과 반환
 

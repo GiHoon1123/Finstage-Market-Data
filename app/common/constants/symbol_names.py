@@ -202,29 +202,14 @@ SYMBOL_NAME_MAP = {
     **INVESTING_SPECIALIZED_NEWS,
 }
 
-# 가격 모니터링 대상 심볼
+# 가격 모니터링 대상 심볼 (나스닥과 S&P500만)
 SYMBOL_PRICE_MAP = {
-    **INDEX_SYMBOLS,
-    **STOCK_SYMBOLS,
-    **LONG_ETF_SYMBOLS,
-    **SHORT_ETF_SYMBOLS,
-    **INTEREST_RATE_SYMBOLS,
-    **DOLLAR_SYMBOLS,
-    **VOLATILITY_SYMBOLS,
-    **COMMODITY_SYMBOLS,
-    **SECTOR_ETF_SYMBOLS,
-    **CREDIT_MARKET_SYMBOLS,
-    **GLOBAL_MARKET_SYMBOLS,
+    **INDEX_SYMBOLS,  # 나스닥과 S&P500만
 }
 
-# ML 모델 훈련 전용 심볼 (핵심 거시경제 지표들)
+# ML 모델 훈련 전용 심볼 (제거 - 가격 데이터는 나스닥과 S&P500만 필요)
 ML_TRAINING_SYMBOLS = {
-    **INTEREST_RATE_SYMBOLS,      # 금리 환경
-    **DOLLAR_SYMBOLS,             # 달러 강세/약세
-    **VOLATILITY_SYMBOLS,         # 시장 불안감
-    **SECTOR_ETF_SYMBOLS,         # 섹터 로테이션
-    **CREDIT_MARKET_SYMBOLS,      # 신용 시장
-    **GLOBAL_MARKET_SYMBOLS,      # 글로벌 시장
+    # 가격 데이터는 나스닥과 S&P500만 필요하므로 제거
 }
 
 # 심볼별 카테고리 매핑
@@ -246,15 +231,5 @@ SYMBOL_CATEGORY_MAP = {
 
 # 모니터링용 카테고리 매핑 (가격 모니터링 대상만)
 SYMBOL_MONITORING_CATEGORY_MAP = {
-    **{symbol: "지수" for symbol in INDEX_SYMBOLS},
-    **{symbol: "종목" for symbol in STOCK_SYMBOLS},
-    **{symbol: "ETF(Long)" for symbol in LONG_ETF_SYMBOLS},
-    **{symbol: "ETF(Short)" for symbol in SHORT_ETF_SYMBOLS},
-    **{symbol: "금리" for symbol in INTEREST_RATE_SYMBOLS},
-    **{symbol: "달러" for symbol in DOLLAR_SYMBOLS},
-    **{symbol: "변동성" for symbol in VOLATILITY_SYMBOLS},
-    **{symbol: "원자재" for symbol in COMMODITY_SYMBOLS},
-    **{symbol: "섹터ETF" for symbol in SECTOR_ETF_SYMBOLS},
-    **{symbol: "신용시장" for symbol in CREDIT_MARKET_SYMBOLS},
-    **{symbol: "글로벌시장" for symbol in GLOBAL_MARKET_SYMBOLS},
+    **{symbol: "지수" for symbol in INDEX_SYMBOLS},  # 나스닥과 S&P500만
 }
